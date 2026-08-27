@@ -1,0 +1,125 @@
+# {{ ansible_managed }}
+# Declares the forward-auth provider and its application instead of clicking
+# through the UI: Authentik applies blueprints on boot, so the SSO setup is
+# rebuilt with the rest of the stack rather than being a manual step nobody
+# remembers a year later.
+version: 1
+metadata:
+  name: homelab-forward-auth
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+
+entries:
+  # Domain-level provider: one sign-in covers every protected host under the
+  # internal domain, rather than one provider per app.
+  - model: authentik_providers_proxy.proxyprovider
+    id: homelab-proxy
+    identifiers:
+      name: homelab-forward-auth
+    attrs:
+      mode: forward_domain
+      external_host: "https://auth.{{ homelab_domain }}"
+      cookie_domain: "{{ homelab_domain }}"
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+
+  - model: authentik_core.application
+    id: homelab-app
+    identifiers:
+      slug: homelab-forward-auth
+    attrs:
+      name: Homelab admin apps
+      provider: !KeyOf homelab-proxy
+
+  # --- Who is allowed through -------------------------------------------
+  #
+  # A `forward_domain` provider covers the whole internal domain, so without a
+  # binding one authenticated session reaches every protected host, the vault UI
+  # included. This group and the bindings below are what narrow that.
+  #
+  # ⚠️ Order matters, and is why the group and every binding live in this one
+  # file rather than in files of their own: entries apply top to bottom, so the
+  # group must exist and hold its member *before* any binding that requires it.
+  # Reversed, the binding locks out the only account there is.
+  - model: authentik_core.group
+    id: homelab-admins
+    identifiers:
+      name: Homelab admins
+    attrs:
+      # Deliberately not `authentik Admins`, though that group exists and would
+      # have worked today. Administering the identity provider and using the
+      # applications behind it are two different permissions, and merging them
+      # means the first person who only needs Sonarr has to be made an Authentik
+      # superuser. Separate now, while it costs one entry.
+      is_superuser: false
+      # Declared on the group and not on the user, which matters: an
+      # `authentik_core.user` entry carrying `groups:` would *replace* that
+      # user's group list, and akadmin holds its superuser rights through
+      # `authentik Admins`. Writing it from this side leaves other memberships
+      # untouched.
+      users:
+        - !Find [authentik_core.user, [username, akadmin]]
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf homelab-app
+      group: !KeyOf homelab-admins
+      order: 0
+    attrs:
+      enabled: true
+
+  # --- And the two OIDC applications ------------------------------------
+  #
+  # `forward_domain` covers the hosts behind forward-auth, and nothing else.
+  # FreshRSS and Linkding are *separate* Authentik applications, each with its
+  # own OIDC provider, so the binding above does not apply to them. Without the
+  # two below, any authenticated account gets in.
+  #
+  # ⚠️ Why these two bindings live HERE and not in their own application's
+  # blueprint, which would be the obvious filing. The question is what happens
+  # when a `!Find` matches nothing, and the answer is not symmetric:
+  #
+  #   - `group` is nullable on PolicyBinding, as the default shipped bindings
+  #     show: they all carry `group=None`. A binding written in
+  #     oidc-linkding.yaml with a `!Find` on a group that does not exist yet
+  #     would therefore be accepted, with no group, no user and no policy: a
+  #     binding that lets nobody through. A silent lockout, on a rebuild.
+  #   - `target` is not nullable. A `!Find` that misses the application fails
+  #     the entry, and with it the blueprint, which Authentik then retries.
+  #
+  # Between a silent failure and a loud one that repairs itself, take the loud
+  # one. Ordering within a file is guaranteed, so the group above exists before
+  # these lines reference it.
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, "{{ authentik_freshrss_client_id }}"]]
+      group: !KeyOf homelab-admins
+      order: 0
+    attrs:
+      enabled: true
+
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !Find [authentik_core.application, [slug, "{{ authentik_linkding_client_id }}"]]
+      group: !KeyOf homelab-admins
+      order: 0
+    attrs:
+      enabled: true
+
+  # Attach it to the built-in embedded outpost, which is what Traefik calls.
+  # authentik_host is what the outpost puts in the sign-in redirect it hands
+  # back to the browser. Left at its default it emits http://localhost:9000,
+  # which resolves to the user's own machine and goes nowhere. It has to be the
+  # name the browser can actually reach, not the one the container sees.
+  - model: authentik_outposts.outpost
+    identifiers:
+      name: authentik Embedded Outpost
+    attrs:
+      providers:
+        - !KeyOf homelab-proxy
+      config:
+        log_level: info
+        authentik_host: "https://auth.{{ homelab_domain }}"
+        authentik_host_browser: "https://auth.{{ homelab_domain }}"
+        authentik_host_insecure: false
+        object_naming_template: "ak-outpost-%(name)s"

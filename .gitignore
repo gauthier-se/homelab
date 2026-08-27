@@ -1,0 +1,45 @@
+# Bootstrap material lives in ~/.config/homelab ($HOMELAB_SECRETS), never here.
+# This rule is the safety net in case anything ever recreates the directory
+# inside the working tree.
+secrets/
+
+# OpenTofu, state holds every input in plaintext
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Variable values, only *.example templates are committed
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Ansible, real inventory and identifiers
+ansible/inventory/hosts.yml
+ansible/group_vars/all/99-local.yml
+ansible/collections/
+*.retry
+.vault_pass*
+
+# Credentials, keys, config dumps
+*.env
+.env*
+*.pem
+*.key
+*.p12
+acme.json
+id_rsa*
+id_ed25519*
+*-config.xml
+
+# OS / editors
+.DS_Store
+*.swp
+*.bak
+.idea/
+.vscode/
+.obsidian/
+__pycache__/

@@ -1,0 +1,46 @@
+---
+# {{ ansible_managed }}
+
+title: Homelab
+description: Landing page for the lab
+
+# Fixed order and shape. Left to itself Homepage sorts groups by discovery, so
+# the page rearranges itself as services come and go, which is exactly when
+# you need to find something quickly.
+layout:
+  Platform:
+    style: row
+    columns: 4
+  Core services:
+    style: row
+    columns: 3
+  Media:
+    style: row
+    columns: 3
+  Media automation:
+    style: row
+    columns: 5
+  Downloads:
+    style: row
+    columns: 3
+
+headerStyle: boxed
+# A coloured dot per service rather than a status line: eighteen cards with a
+# sentence of status each is a wall of text nobody reads.
+statusStyle: dot
+theme: dark
+color: slate
+useEqualHeights: true
+
+# Typing goes to the service filter first and only falls through to a web
+# search on Enter, the point of the page is finding a service.
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  showSearchSuggestions: false
+  provider: duckduckgo
+
+# Homepage's own chrome (button labels, relative dates). Service names and
+# descriptions stay in English, like the rest of this repository.
+language: fr
+target: _blank

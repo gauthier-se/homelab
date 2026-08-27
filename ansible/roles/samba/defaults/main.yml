@@ -1,0 +1,9 @@
+---
+samba_media_path: /mnt/hdd
+# Share name and user are carried over from the pre-wipe server on purpose:
+# renaming either would break every mapped drive that already points at them.
+samba_share_name: Stockage
+samba_user: retro
+samba_uid: 1000
+# Access is restricted to the Servers/Trusted subnets; no guest access.
+samba_hosts_allow: "10.10.20. 10.10.30. 127."

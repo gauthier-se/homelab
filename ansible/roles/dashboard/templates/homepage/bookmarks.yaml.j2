@@ -1,0 +1,55 @@
+---
+# {{ ansible_managed }}
+#
+# Links, not services: nothing here is probed or has a widget. Anything the lab
+# runs belongs in services.yaml instead.
+
+- Control planes:
+    - Cloudflare:
+        - abbr: CF
+          href: https://dash.cloudflare.com/
+          # DNS for the public names, and the API token Traefik solves DNS-01
+          # with. Also where the proxy toggle for tv. lives.
+    - Tailscale:
+        - abbr: TS
+          href: https://login.tailscale.com/admin/machines
+    - Switch:
+        - abbr: SW
+          # Still on the retired flat LAN: this model has no management-VLAN
+          # setting, so its address could not move with everything else.
+          # Reachable from the tailnet or a machine on 192.168.1.0/24.
+          href: http://192.168.1.2
+
+- Checks:
+    - Certificate transparency:
+        - abbr: CT
+          href: https://crt.sh/
+    - SSL Labs:
+        - abbr: SSL
+          href: https://www.ssllabs.com/ssltest/
+    - Public IP:
+        - abbr: IP
+          href: https://ifconfig.me/
+
+- Documentation:
+    - Proxmox VE:
+        - abbr: PVE
+          href: https://pve.proxmox.com/pve-docs/
+    - OPNsense:
+        - abbr: OPN
+          href: https://docs.opnsense.org/
+    - Traefik:
+        - abbr: TFK
+          href: https://doc.traefik.io/traefik/
+    - Authentik:
+        - abbr: AK
+          href: https://docs.goauthentik.io/
+    - OpenBao:
+        - abbr: BAO
+          href: https://openbao.org/docs/
+    - Homepage:
+        - abbr: HP
+          href: https://gethomepage.dev/
+    - Uptime Kuma:
+        - abbr: UK
+          href: https://github.com/louislam/uptime-kuma/wiki

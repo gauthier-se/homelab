@@ -1,0 +1,9 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Verify the newest vzdump archive of every backed-up guest
+
+[Service]
+Type=oneshot
+ExecStart=/root/backup-verify.sh
+Nice=15
+IOSchedulingClass=idle

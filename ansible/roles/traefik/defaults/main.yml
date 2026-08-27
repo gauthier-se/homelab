@@ -1,0 +1,103 @@
+---
+# renovate: datasource=github-releases depName=traefik/traefik
+traefik_version: "3.7.10"
+
+# Cloudflare API token for the DNS-01 challenge, read from OpenBao at run time.
+traefik_vault_path: traefik
+traefik_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            traefik_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+traefik_cloudflare_token: "{{ traefik_vault.cf_token }}"
+
+# Authentik's embedded outpost, called by the forward-auth middleware.
+traefik_authentik_outpost: "http://10.10.25.11:9000"
+
+# Wildcard on the internal instance only. The public one asks per name: a
+# wildcard on the apex would let a compromised DMZ host mint any name in it.
+traefik_use_wildcard: true
+
+# Per source IP, per minute. Invisible while streaming, not free to brute-force.
+traefik_ratelimit_average: 120
+traefik_ratelimit_burst: 240
+
+# Root CA of the internal PKI, so HTTPS backends are verified, not trusted blindly.
+traefik_internal_ca_dest: /etc/traefik/internal-ca.pem
+
+# Names become <name>.{{ homelab_domain }}, all under the one wildcard, so
+# adding a service is a routing change and not a new ACME order.
+#
+# No `unifi` entry on purpose: the controller is on Management, and the matrix
+# denies Servers to Management. Reach it directly or over the tailnet.
+#
+# `auth: true` puts the service behind Authentik. The entries without it are not
+# oversights; each has a reason noted below.
+traefik_services:
+  # No SSO: TV and phone apps cannot follow a forward-auth redirect.
+  - { name: jellyfin, url: "http://10.10.20.10:8096" }
+  - { name: requests, url: "http://10.10.20.11:5055" }
+  - { name: books, url: "http://10.10.20.11:13378" }
+  - { name: radarr, url: "http://10.10.20.11:7878", auth: true }
+  - { name: sonarr, url: "http://10.10.20.11:8989", auth: true }
+  - { name: lidarr, url: "http://10.10.20.11:8686", auth: true }
+  - { name: bazarr, url: "http://10.10.20.11:6767", auth: true }
+  - { name: prowlarr, url: "http://10.10.20.11:9696", auth: true }
+  - { name: torrents, url: "http://10.10.20.12:8080", auth: true }
+  # Homepage has no auth of its own and holds a read credential for most of the
+  # lab. Widgets are unaffected: it reaches Uptime Kuma container-to-container.
+  - { name: dash, url: "http://10.10.20.14:3000", auth: true }
+  - { name: status, url: "http://10.10.20.14:3001", auth: true }
+  # OIDC against Authentik instead of forward-auth, because both keep an API
+  # outside the SSO boundary and forward-auth would put a login redirect in
+  # front of it. FreshRSS splits by Apache directory (`p/i/` protected,
+  # `p/api/` not); Linkding splits by Django middleware (sessions for the web
+  # interface, `Authorization: Token` for /api/, which never reaches it).
+  - { name: rss, url: "http://10.10.20.15:8080" }
+  - { name: links, url: "http://10.10.20.18:9090" }
+  # An API with no interactive login: the client is a plugin, not a browser.
+  # CouchDB's own `require_valid_user` is the authentication, and CORS for
+  # `app://obsidian.md` is set in the database. Not exposed through the DMZ.
+  - { name: obsidian, url: "http://10.10.20.16:5984" }
+  - { name: auth, url: "http://10.10.25.11:9000" }
+  - { name: bao, url: "https://10.10.25.10:8200", auth: true }
+  # ⚠️ Port 80, not the customary 8123: the supervisor rewrites its stored port
+  # on every core restart, so 8123 does not stick. `strip_xff` removes
+  # X-Forwarded-For, without which HA answers 400 to everything this proxy sends
+  # it, and the same supervisor ignores the `http.trusted_proxies` block that
+  # would normally fix that. No SSO, same reason as Jellyfin.
+  - { name: ha, url: "http://10.10.40.15:80", strip_xff: true }
+  # Public names served internally too: without these, a device on the LAN using
+  # the public URL leaves through the WAN to reach a machine two metres away.
+  - { name: jellyfin-public, host: "{{ public_jellyfin_host }}", url: "http://10.10.20.10:8096" }
+  - { name: requests-public, host: "{{ public_requests_host }}", url: "http://10.10.20.11:5055" }
+
+traefik_access_log: /var/log/traefik/access.log
+traefik_access_log_keep_days: 14
+
+# CrowdSec reads the access log above; the bouncer plugin turns its decisions
+# into a 403 at the edge.
+traefik_crowdsec_enabled: false
+# renovate: datasource=github-releases depName=maxlerebourg/crowdsec-bouncer-traefik-plugin
+traefik_crowdsec_plugin_version: "v1.4.5"
+traefik_crowdsec_lapi_host: "127.0.0.1:8080"
+
+# ⚠️ Vendored on disk and loaded as a *local* plugin. A remote plugin is a
+# network dependency in the boot path: Traefik re-fetches at every start, cache
+# or no cache, and when the fetch fails it disables plugins entirely. Every
+# router referencing `crowdsec@file` then becomes invalid while the unit still
+# reports `active`. Ansible downloads it at deploy time instead.
+traefik_crowdsec_plugin_module: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+
+# Proxies whose X-Forwarded-For may be believed. Empty internally: nothing sits
+# in front, so any such header would be forged.
+traefik_trusted_proxies: []
+traefik_state_dir: /var/lib/traefik
+
+# The bouncer's last-resort exemption, consulted after the engine has decided.
+# ⚠️ Management only. Widen this and the bouncer can no longer refuse anyone:
+# the admin plane is where a bad ban gets undone, so nothing else belongs here.
+traefik_crowdsec_trusted_clients:
+  - 10.10.10.0/24

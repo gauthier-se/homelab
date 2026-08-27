@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  role_name: media_qbittorrent
+  author: homelab
+  description: qBittorrent routed through gluetun (VPN kill-switch) via Docker Compose
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+dependencies: []

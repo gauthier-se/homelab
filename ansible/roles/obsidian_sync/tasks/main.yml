@@ -1,0 +1,167 @@
+---
+# uid/gid 5984 is the `couchdb` user baked into the image. The entrypoint runs
+# as root and chowns anything under /opt/couchdb it does not already own, so
+# matching the ownership here means it has nothing to touch, and the read-only
+# config mount never has a chown attempted against it.
+- name: Create the obsidian-sync project directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "5984"
+    group: "5984"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ obsidian_sync_dir }}", mode: "0750" }
+    - { path: "{{ obsidian_sync_dir }}/data", mode: "0755" }
+    - { path: "{{ obsidian_sync_dir }}/etc", mode: "0755" }
+
+- name: Deploy the CouchDB administrator credentials
+  ansible.builtin.template:
+    src: obsidian-sync.env.j2
+    dest: "{{ obsidian_sync_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart CouchDB
+
+# 0644 and couchdb-owned: the image's startup pass chmods every file under
+# /opt/couchdb/etc to exactly that, so anything else here would be a permanent
+# diff between what Ansible writes and what the container sees.
+- name: Deploy the CouchDB configuration
+  ansible.builtin.template:
+    src: couchdb.ini.j2
+    dest: "{{ obsidian_sync_dir }}/etc/10-homelab.ini"
+    owner: "5984"
+    group: "5984"
+    mode: "0644"
+  notify: Restart CouchDB
+
+- name: Deploy the obsidian-sync compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ obsidian_sync_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart CouchDB
+
+- name: Start CouchDB
+  community.docker.docker_compose_v2:
+    project_src: "{{ obsidian_sync_dir }}"
+    state: present
+
+# Everything below talks to the database. A pending restart from the tasks above
+# has to land first, or the provisioning runs against the previous configuration.
+- name: Apply any pending CouchDB restart before provisioning
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for CouchDB to answer
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/_up"
+    status_code: 200
+  register: obsidian_sync_up
+  retries: 30
+  delay: 2
+  until: obsidian_sync_up is succeeded
+  changed_when: false
+
+# 412 is "already exists", which is the steady state on every replay after the
+# first. `single_node = true` in the config took care of _users, _replicator and
+# _global_changes at first start; this is the vault's own database.
+- name: Create the vault database
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/{{ obsidian_sync_database }}"
+    method: PUT
+    url_username: "{{ obsidian_sync_admin_user }}"
+    url_password: "{{ obsidian_sync_admin_password }}"
+    force_basic_auth: true
+    status_code: [201, 412]
+  register: obsidian_sync_db
+  changed_when: obsidian_sync_db.status == 201
+  no_log: true
+
+- name: Look for the sync account
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/_users/org.couchdb.user:{{ obsidian_sync_user }}"
+    url_username: "{{ obsidian_sync_admin_user }}"
+    url_password: "{{ obsidian_sync_admin_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: obsidian_sync_account
+  changed_when: false
+  no_log: true
+
+# Created once, never rewritten. Rewriting it on every play would report a
+# change every time: CouchDB salts the hash, so there is no way to tell a
+# rotated password from an unchanged one by reading the document. The check
+# below is what makes that safe: if the vault and the database ever disagree,
+# the play says so instead of leaving a silently broken login.
+- name: Create the sync account
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/_users/org.couchdb.user:{{ obsidian_sync_user }}"
+    method: PUT
+    url_username: "{{ obsidian_sync_admin_user }}"
+    url_password: "{{ obsidian_sync_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ obsidian_sync_user }}"
+      password: "{{ obsidian_sync_password }}"
+      roles: []
+      type: user
+    status_code: 201
+  when: obsidian_sync_account.status == 404
+  no_log: true
+
+- name: Read the vault database permissions
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/{{ obsidian_sync_database }}/_security"
+    url_username: "{{ obsidian_sync_admin_user }}"
+    url_password: "{{ obsidian_sync_admin_password }}"
+    force_basic_auth: true
+    status_code: 200
+  register: obsidian_sync_security
+  changed_when: false
+  no_log: true
+
+# Admin *of this database only*, not a server admin. A plain member cannot
+# create design documents, CouchDB answers 403 "You are not a db or server
+# admin", and the plugin needs them during first-run setup, so membership alone
+# fails halfway through the initial sync.
+#
+# The blast radius is unchanged in every way that matters: this account still
+# cannot list the other databases, read the server configuration, or touch the
+# user list. What it gains is the right to administer the one database it exists
+# to serve.
+- name: Make the sync account administrator of the vault database
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/{{ obsidian_sync_database }}/_security"
+    method: PUT
+    url_username: "{{ obsidian_sync_admin_user }}"
+    url_password: "{{ obsidian_sync_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      admins:
+        names: ["{{ obsidian_sync_user }}"]
+        roles: []
+      members:
+        names: ["{{ obsidian_sync_user }}"]
+        roles: []
+    status_code: 200
+  when: obsidian_sync_user not in
+        (obsidian_sync_security.json.admins.names | default([]))
+  no_log: true
+
+# The one thing the create-once approach above cannot guarantee on its own.
+# Fails loudly the day the vault holds a password the database never received.
+- name: Check that the sync credential actually opens the vault database
+  ansible.builtin.uri:
+    url: "{{ obsidian_sync_api }}/{{ obsidian_sync_database }}"
+    url_username: "{{ obsidian_sync_user }}"
+    url_password: "{{ obsidian_sync_password }}"
+    force_basic_auth: true
+    status_code: 200
+  changed_when: false
+  no_log: true

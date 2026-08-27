@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+#
+# Encrypted offsite backup of the small perimeter that is NOT re-acquirable.
+#
+# The USB disk on the node survives an accident, not a room. The 18 TB library
+# stays out of scope as re-downloadable, which leaves about 3 GB.
+#
+# ⚠️ It backs up LVM thin SNAPSHOTS, not the running guests. Reading files out
+# of a live container gives a torn copy of anything holding a database open:
+# SQLite with a WAL, PostgreSQL, bolt. Per-service fixes (sqlite3 .backup,
+# pg_dump, a vault snapshot token) would mean a list in this script, and lists
+# drift. Snapshotting every LXC volume instead is one mechanism with no
+# per-service logic, so a guest added later needs no edit here. Thin snapshots
+# are allocate-on-write: seconds to create and destroy, no full copy.
+
+set -uo pipefail
+
+MNT="{{ proxmox_host_offsite_mount }}"
+EXCLUDES="{{ proxmox_host_offsite_exclude_file }}"
+ENV_FILE="{{ proxmox_host_offsite_env_file }}"
+VG=pve
+
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+
+started=$(date +%s)
+# ⚠️ Counted by hand rather than with the usual array-length construct: it
+# opens with the two characters Jinja reads as a comment, and this is a
+# template. Writing them out even inside a shell comment breaks the render.
+mounted=()
+mounted_count=0
+rc=0
+
+# The ntfy topic is read from the Proxmox notification config rather than stored
+# again here. It is already the single place that decides where backup and
+# system alerts land, and duplicating it would be one more thing to keep in sync.
+notify() {
+  local title="$1" priority="$2" body="$3" url
+  url=$(awk '/^webhook: ntfy$/{f=1} f && /^\turl /{print $2; exit}' /etc/pve/notifications.cfg 2>/dev/null)
+  [ -n "$url" ] || return 0
+  # ⚠️ ASCII only in headers. A Title carrying an em dash made every Proxmox
+  # notification fail on "failed to convert header to a str", and
+  # the endpoint registered fine, only sending broke.
+  curl -sS --max-time 20 -H "Title: $title" -H "Priority: $priority" \
+    -d "$body" "$url" >/dev/null 2>&1 || true
+}
+
+cleanup() {
+  local id
+  for id in "${mounted[@]:-}"; do
+    [ -n "$id" ] || continue
+    mountpoint -q "$MNT/$id" && umount "$MNT/$id"
+    rmdir "$MNT/$id" 2>/dev/null
+    lvremove -f "$VG/offsite-$id" >/dev/null 2>&1
+  done
+  rm -rf "$MNT/etc-pve"
+}
+trap cleanup EXIT
+
+# A previous run killed mid-flight leaves snapshots behind, and a stale snapshot
+# holds pool space forever. Clear them before taking new ones rather than after:
+# the run that crashed is exactly the one that will not get to clean up.
+for stale in $(lvs --noheadings -o lv_name "$VG" 2>/dev/null | awk '/^ *offsite-/{print $1}'); do
+  id=${stale#offsite-}
+  mountpoint -q "$MNT/$id" && umount "$MNT/$id"
+  rmdir "$MNT/$id" 2>/dev/null
+  lvremove -f "$VG/$stale" >/dev/null 2>&1 && echo "cleared stale snapshot $stale"
+done
+
+mkdir -p "$MNT"
+
+# Guests are discovered, never listed. Any LXC whose rootfs is on the thin pool
+# is in scope the moment it exists.
+for conf in /etc/pve/lxc/*.conf; do
+  [ -e "$conf" ] || continue
+  id=$(basename "$conf" .conf)
+  spec=$(awk '/^rootfs:/{print $2}' "$conf")
+  store=${spec%%:*}
+  vol=${spec#*:}; vol=${vol%%,*}
+  if [ "$store" != "local-lvm" ]; then
+    echo "skip $id: rootfs on '$store', not the thin pool"
+    continue
+  fi
+  if ! lvcreate -s -n "offsite-$id" "$VG/$vol" >/dev/null 2>&1; then
+    echo "FAIL $id: could not snapshot $vol"
+    rc=1
+    continue
+  fi
+  # Thin snapshots come up with the activation-skip flag set; -K ignores it.
+  lvchange -ay -Ky "$VG/offsite-$id" >/dev/null 2>&1
+  mkdir -p "$MNT/$id"
+  if mount -o ro,nodev,noexec "/dev/$VG/offsite-$id" "$MNT/$id" 2>/dev/null; then
+    mounted+=("$id"); mounted_count=$((mounted_count + 1))
+  else
+    echo "FAIL $id: could not mount snapshot"
+    lvremove -f "$VG/offsite-$id" >/dev/null 2>&1
+    rmdir "$MNT/$id" 2>/dev/null
+    rc=1
+  fi
+done
+
+if [ "$mounted_count" -eq 0 ]; then
+  notify "Offsite backup FAILED" 5 "No guest could be snapshotted. Nothing was uploaded."
+  exit 2
+fi
+
+# /etc/pve is a fuse mount (pmxcfs), so it cannot be snapshotted. It is 17 KB and
+# it is the node's identity: guest configs, storage, users, the notification
+# targets. Copy it in.
+mkdir -p "$MNT/etc-pve"
+cp -a /etc/pve/. "$MNT/etc-pve/" 2>/dev/null
+
+echo "--- restic backup: $mounted_count guest(s) + /etc/pve ---"
+restic backup "$MNT" \
+  --exclude-file="$EXCLUDES" \
+  --tag nightly \
+  --host "{{ inventory_hostname }}" \
+  --verbose 2>&1
+backup_rc=$?
+[ "$backup_rc" -eq 0 ] || rc=1
+
+if [ "$backup_rc" -eq 0 ]; then
+  echo "--- forget + prune ---"
+  restic forget \
+    --keep-daily {{ proxmox_host_offsite_keep_daily }} \
+    --keep-weekly {{ proxmox_host_offsite_keep_weekly }} \
+    --keep-monthly {{ proxmox_host_offsite_keep_monthly }} \
+    --prune 2>&1 || rc=1
+
+  # Structural check every run: it is metadata-only, so it costs seconds and no
+  # egress. It does NOT re-read the data: that is what the quarterly restore
+  # drill is for, and a repository that passes `check` can still hold a pack
+  # the object store silently lost.
+  echo "--- check ---"
+  restic check 2>&1 || rc=1
+fi
+
+elapsed=$(( $(date +%s) - started ))
+if [ "$rc" -eq 0 ]; then
+  # Nested same-type quotes inside an f-string only parse on Python 3.12+.
+  # Spelled out so this does not depend on the node's interpreter version.
+  size=$(restic stats --mode raw-data --json 2>/dev/null \
+    | python3 -c 'import sys, json; n = json.load(sys.stdin)["total_size"]; print("%.2f GB" % (n / 1e9))' 2>/dev/null)
+  notify "Offsite backup OK" 2 "$mounted_count guests + /etc/pve, ${elapsed}s, repo ${size:-?}"
+else
+  notify "Offsite backup FAILED" 5 "Exit $rc after ${elapsed}s. Check journalctl -u offsite-backup."
+fi
+
+exit $rc

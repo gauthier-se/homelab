@@ -1,0 +1,56 @@
+---
+# Pinned: this database is the only copy of the vault that every device
+# converges on, and a major CouchDB bump is a migration, not a pull.
+obsidian_sync_image: couchdb:3.5.0
+
+obsidian_sync_dir: /opt/obsidian-sync
+obsidian_sync_port: 5984
+obsidian_sync_host: "obsidian.{{ homelab_domain }}"
+
+# Where the plugin points. One database per vault; a second vault gets a second
+# entry here and a second `_security` block, not a second guest.
+obsidian_sync_database: obsidian
+
+# --- CouchDB tuning that obsidian-livesync requires --------------------------
+# Values from the plugin's own provisioning script (utils/couchdb/provision.ts).
+# Every one of them fails silently when missing: the vault simply never
+# converges on mobile, with no error anywhere.
+#
+# 4 GiB request ceiling, 50 MB per document: a single attachment (a PDF or an
+# image in the vault) travels as one request.
+obsidian_sync_max_http_request_size: 4294967296
+obsidian_sync_max_document_size: 50000000
+# The origins Obsidian sends. `app://obsidian.md` is the desktop client,
+# `capacitor://localhost` is iOS and Android.
+obsidian_sync_cors_origins:
+  - app://obsidian.md
+  - capacitor://localhost
+  - http://localhost
+
+# --- Secrets ---------------------------------------------------------------
+# Read from OpenBao at run time. Requires openbao_addr + openbao_token.
+obsidian_sync_vault_path: obsidian-sync
+obsidian_sync_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            obsidian_sync_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+
+# Server administrator. Used by this role and by nothing else. It is not what
+# goes into the plugin.
+obsidian_sync_admin_user: "{{ obsidian_sync_vault.admin_user }}"
+obsidian_sync_admin_password: "{{ obsidian_sync_vault.admin_password }}"
+
+# What the plugin is configured with, on every device including the phones.
+# Deliberately not the administrator: a member of one database can read and
+# write that vault and nothing else: not the other databases, not the server
+# configuration, not the user list.
+obsidian_sync_user: "{{ obsidian_sync_vault.sync_user }}"
+obsidian_sync_password: "{{ obsidian_sync_vault.sync_password }}"
+
+# Local endpoint the role talks to. Not the proxied name: this runs on the
+# guest itself, and going out to Traefik and back to configure the database
+# underneath it would make the play depend on the proxy being up.
+obsidian_sync_api: "http://127.0.0.1:{{ obsidian_sync_port }}"

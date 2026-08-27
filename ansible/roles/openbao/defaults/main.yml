@@ -1,0 +1,20 @@
+---
+# renovate: datasource=github-releases depName=openbao/openbao
+openbao_version: "2.6.1"
+openbao_api_ip: 10.10.25.10
+
+# The listener's certificate. The .deb ships a self-signed pair, which is what
+# bootstraps the very first start, the vault cannot serve a cert from its own
+# PKI before that PKI exists. Once it does, `openbao_tls_managed` switches the
+# listener onto an internally-issued cert, renewed by a timer.
+openbao_tls_managed: true
+openbao_tls_cert: >-
+  {{ '/etc/openbao/tls/tls.crt' if openbao_tls_managed else '/opt/openbao/tls/tls.crt' }}
+openbao_tls_key: >-
+  {{ '/etc/openbao/tls/tls.key' if openbao_tls_managed else '/opt/openbao/tls/tls.key' }}
+
+# Short-lived on purpose: the renewal path is exercised often enough that it
+# cannot rot unnoticed. Renewal reloads with SIGHUP, so the vault never seals.
+openbao_tls_ttl: 720h
+openbao_tls_renew_before_days: 10
+openbao_tls_token_file: /etc/openbao/pki-token

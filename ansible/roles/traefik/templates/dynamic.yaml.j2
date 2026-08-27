@@ -1,0 +1,193 @@
+# {{ ansible_managed }}
+# One wildcard certificate covers every name below, so adding a service is a
+# routing change and never a new ACME order.
+{% if traefik_use_wildcard %}
+tls:
+  stores:
+    default:
+      defaultGeneratedCert:
+        resolver: letsencrypt
+        domain:
+          main: "{{ homelab_domain }}"
+          sans:
+            - "{{ acme_wildcard }}"
+{% endif %}
+
+{# Two blocks below are emitted only if this instance's own service list needs
+   them, rather than because a default happened to travel here. One role serves
+   two instances, and an un-overridden default inherits silently: that is what
+   makes the role short, and it is also how the DMZ ended up carrying an
+   Authentik outpost address and an internal CA it has no use for. Derived from
+   `traefik_services`, the question answers itself per instance. #}
+{% set https_backends = traefik_services | map(attribute='url') | select('search', '^https://') | list %}
+{% set auth_services = traefik_services | selectattr('auth', 'defined') | selectattr('auth') | list %}
+http:
+{% if https_backends %}
+  # Backends that speak HTTPS with an internally-issued certificate. Without
+  # this Traefik refuses them ("x509: certificate signed by unknown authority"),
+  # and the tempting fix, insecureSkipVerify, would throw away exactly the
+  # guarantee the internal PKI was built to provide.
+  serversTransports:
+    internal-pki:
+      rootCAs:
+        - "{{ traefik_internal_ca_dest }}"
+
+{% endif %}
+  middlewares:
+{% if traefik_crowdsec_enabled %}
+    # Consults the local decision engine before the request reaches anything.
+    # `crowdsecMode: live` asks per request; the alternative caches decisions
+    # and would keep serving someone for minutes after they were banned.
+    crowdsec:
+      plugin:
+        crowdsec:
+          enabled: true
+          crowdsecMode: live
+          crowdsecLapiHost: "{{ traefik_crowdsec_lapi_host }}"
+          crowdsecLapiScheme: http
+          # Defined by the crowdsec role, which site.yml runs first on this host.
+          crowdsecLapiKeyFile: "{{ crowdsec_bouncer_key_file }}"
+          # Never lock out the house because the engine hiccuped or because a
+          # LAN client tripped a scenario.
+          clientTrustedIPs:
+{% for cidr in traefik_crowdsec_trusted_clients %}
+            - {{ cidr }}
+{% endfor %}
+
+{% endif %}
+    # Attached by `harden`, which means this plus the security headers, and is
+    # used on public routes only. Per source IP: high enough that streaming never
+    # notices, low enough that credential stuffing is not free.
+    ratelimit:
+      rateLimit:
+        average: {{ traefik_ratelimit_average }}
+        burst: {{ traefik_ratelimit_burst }}
+        period: 1m
+
+    secure-headers:
+      headers:
+        # The whole point of the DMZ is that this host is expendable; do not let
+        # a downgrade attack turn a compromise into a plaintext one.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: strict-origin-when-cross-origin
+        # Not frameDeny: Jellyfin's web client legitimately uses iframes.
+        customFrameOptionsValue: SAMEORIGIN
+
+    # Opt-in per service (`strip_xff: true`), used only by Home Assistant.
+    # HA answers 400 to any request carrying X-Forwarded-For unless its own
+    # `http.trusted_proxies` lists this proxy, and on HAOS the supervisor
+    # ignores that YAML block entirely (verified: correct file, valid syntax,
+    # core restarted, still refused). Removing the header is what makes the
+    # route work at all.
+    #
+    # ⚠️ The cost is real: HA then sees every client as this proxy, so its
+    # IP-based features, the login ban list, `trusted_networks` auth, become
+    # blind. Acceptable here because the only route to it is one firewall rule
+    # from one address, but never apply this to something that authenticates on
+    # IP.
+    strip-forwarded-for:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-For: ""
+
+{% if auth_services %}
+    authentik:
+      forwardAuth:
+        address: "{{ traefik_authentik_outpost }}/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        # Traefik buffers the auth server's response in memory. Unbounded, a
+        # misbehaving or compromised auth service can exhaust the proxy's RAM;
+        # 64 KiB is far more than an auth decision ever needs.
+        maxResponseBodySize: 65536
+        authResponseHeaders:
+          - X-authentik-username
+          - X-authentik-groups
+          - X-authentik-email
+          - X-authentik-name
+          - X-authentik-uid
+{% endif %}
+
+  routers:
+{% for svc in traefik_services %}
+{% set fqdn = svc.host | default(svc.name ~ '.' ~ homelab_domain) %}
+{# An explicit host sits outside the wildcard's zone: it needs its own cert. #}
+{% set wildcard_ok = traefik_use_wildcard and svc.host is not defined %}
+    {{ svc.name }}:
+      rule: "Host(`{{ fqdn }}`)"
+      entryPoints:
+        - websecure
+{% if traefik_crowdsec_enabled or svc.auth | default(false) or svc.harden | default(false) or svc.strip_xff | default(false) %}
+      middlewares:
+{# CrowdSec follows the engine, not the route: a decision is about a source
+   address and says nothing about which vhost it was heading for. Derived from
+   the engine's own switch so that a new route cannot forget it. Attaching it
+   per route instead means an instance can run detection that nothing consults. #}
+{% if traefik_crowdsec_enabled %}
+        - crowdsec
+{% endif %}
+{% if svc.harden | default(false) %}
+        - ratelimit
+        - secure-headers
+{% endif %}
+{% if svc.auth | default(false) %}
+        - authentik
+{% endif %}
+{# Last, so it strips the header once every other middleware has seen it. #}
+{% if svc.strip_xff | default(false) %}
+        - strip-forwarded-for
+{% endif %}
+{% endif %}
+      service: {{ svc.name }}
+      tls:
+        certResolver: letsencrypt
+{% if wildcard_ok %}
+        domains:
+          - main: "{{ homelab_domain }}"
+            sans:
+              - "{{ acme_wildcard }}"
+{% endif %}
+{% if svc.auth | default(false) %}
+
+    # Higher priority than the service router: the sign-in redirect and callback
+    # must reach Authentik itself, not the app sitting behind the middleware.
+    {{ svc.name }}-outpost:
+      rule: "Host(`{{ fqdn }}`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      priority: 100
+      entryPoints:
+        - websecure
+{% if traefik_crowdsec_enabled %}
+      middlewares:
+        - crowdsec
+{% endif %}
+      service: authentik-outpost
+      tls:
+        certResolver: letsencrypt
+{% if wildcard_ok %}
+        domains:
+          - main: "{{ homelab_domain }}"
+            sans:
+              - "{{ acme_wildcard }}"
+{% endif %}
+{% endif %}
+{% endfor %}
+
+  services:
+{% for svc in traefik_services %}
+    {{ svc.name }}:
+      loadBalancer:
+{% if svc.url.startswith('https://') %}
+        serversTransport: internal-pki
+{% endif %}
+        servers:
+          - url: "{{ svc.url }}"
+{% endfor %}
+{% if auth_services %}
+    authentik-outpost:
+      loadBalancer:
+        servers:
+          - url: "{{ traefik_authentik_outpost }}"
+{% endif %}

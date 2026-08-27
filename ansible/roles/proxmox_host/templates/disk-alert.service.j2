@@ -1,0 +1,7 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Warn before anything on this node runs out of room
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/disk-alert.sh

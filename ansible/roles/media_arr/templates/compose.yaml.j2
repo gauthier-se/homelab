@@ -1,0 +1,68 @@
+# {{ ansible_managed }}
+services:
+{% for app in media_arr_apps %}
+  {{ app.name }}:
+    image: {{ app.image }}
+    container_name: {{ app.name }}
+    restart: unless-stopped
+    environment:
+      PUID: "{{ media_arr_puid }}"
+      PGID: "{{ media_arr_pgid }}"
+      TZ: "{{ homelab_timezone }}"
+    volumes:
+      - ./{{ app.name }}/config:/config
+      - {{ media_arr_media_root }}:{{ media_arr_media_root }}
+    ports:
+      - "{{ app.port }}:{{ app.port }}"
+{% endfor %}
+
+  # Formerly jellyseerr. The project renamed to Seerr in v3.0.0 and the old
+  # Docker Hub image stopped being published: this instance ran a year-old
+  # build before the rename was noticed. Pinned rather than `:latest` like its
+  # neighbours: this is one of only two services reachable from the internet,
+  # so a surprise upstream change here costs more than a delayed patch, and a
+  # version bump should be a reviewable one-line diff.
+  seerr:
+    image: {{ media_arr_seerr_image }}
+    container_name: seerr
+    restart: unless-stopped
+    environment:
+      TZ: "{{ homelab_timezone }}"
+      PORT: "5055"
+    volumes:
+      - ./seerr/config:/app/config
+    ports:
+      - "5055:5055"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  flaresolverr:
+    image: {{ media_arr_flaresolverr_image }}
+    container_name: flaresolverr
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: info
+      LOG_HTML: "false"
+      CAPTCHA_SOLVER: none
+      TZ: "{{ homelab_timezone }}"
+    ports:
+      - "8191:8191"
+
+  audiobookshelf:
+    image: {{ media_arr_audiobookshelf_image }}
+    container_name: audiobookshelf
+    restart: unless-stopped
+    environment:
+      AUDIOBOOKSHELF_UID: "{{ media_arr_puid }}"
+      AUDIOBOOKSHELF_GID: "{{ media_arr_pgid }}"
+      TZ: "{{ homelab_timezone }}"
+    volumes:
+      - ./audiobookshelf/config:/config
+      - ./audiobookshelf/metadata:/metadata
+      - {{ media_arr_media_root }}:{{ media_arr_media_root }}
+    ports:
+      - "13378:80"

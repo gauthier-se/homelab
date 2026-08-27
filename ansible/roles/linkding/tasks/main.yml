@@ -1,0 +1,145 @@
+---
+- name: Create the Linkding project directory
+  ansible.builtin.file:
+    path: "{{ linkding_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Created as www-data, not as root, and this is load-bearing. uwsgi.ini drops to
+# `uid = www-data` and the entrypoint runs `chown -R www-data: /etc/linkding/data`
+# on every start, so a root-owned directory is fought over on every replay:
+# Ansible chowns it back, the container chowns it forward, and whichever ran
+# last decides whether the web process can write.
+#
+# 0755 rather than 0700: SQLite has no equivalent of PostgreSQL's refusal to
+# start on a group-readable data directory, so there is nothing to satisfy, and
+# a directory `root` can traverse is a directory a human can back up and inspect.
+#
+# Same shape as the FreshRSS PostgreSQL directory and the Uptime Kuma one. When
+# a container drops privileges, Ansible has to create the directory as the
+# account that will own it.
+- name: Create the Linkding data directory
+  ansible.builtin.file:
+    path: "{{ linkding_dir }}/data"
+    state: directory
+    owner: "{{ linkding_www_uid }}"
+    group: "{{ linkding_www_gid }}"
+    mode: "0755"
+
+- name: Deploy the Linkding credentials
+  ansible.builtin.template:
+    src: linkding.env.j2
+    dest: "{{ linkding_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart Linkding
+
+- name: Deploy the Linkding compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ linkding_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart Linkding
+
+- name: Start Linkding
+  community.docker.docker_compose_v2:
+    project_src: "{{ linkding_dir }}"
+    state: present
+
+# Handlers normally run at the end of the play. Here the reconcile below has to
+# talk to a container started with the *current* environment, so the restart is
+# brought forward rather than left pending.
+- name: Apply any pending restart before reconciling the account
+  ansible.builtin.meta: flush_handlers
+
+# ⚠️ The one thing about this montage that is not guessable, and the reason this
+# task exists at all.
+#
+# `create_initial_superuser` builds the account with a username and NO email
+# address, and returns early ever after. mozilla-django-oidc, meanwhile, resolves
+# an incoming identity to a local account by matching the `email` claim
+# (`filter_users_by_claims`, upstream, not configurable), and when it matches
+# nothing it does not fail: it *creates* a user, because OIDC_CREATE_USER
+# defaults to True.
+#
+# So the untreated failure mode is not a locked-out administrator. It is two
+# accounts: the empty superuser this compose file made, and a second ordinary
+# one minted at the first sign-in, holding every bookmark ever saved. Nothing
+# reports it. You notice weeks later when /admin is unreachable from the account
+# you actually use.
+#
+# Writing the email onto the superuser closes it: the first OIDC login then
+# matches that account and creates nothing.
+#
+# `user: www-data` matters as much as the code. `docker exec` runs as root by
+# default, and any SQLite file this touches, including a WAL segment it has to
+# create, would come out root-owned inside a directory the web process owns.
+- name: Reconcile the Linkding superuser with OpenBao
+  community.docker.docker_container_exec:
+    container: linkding
+    user: www-data
+    argv:
+      - python
+      - manage.py
+      - shell
+      - "-c"
+      # `| to_json` rather than bare interpolation: these values are being
+      # pasted into Python source, and a quote in an address should be a syntax
+      # error at worst, never an injection.
+      - |
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        name = {{ linkding_admin_user | to_json }}
+        email = {{ linkding_admin_email | to_json }}
+        user = User.objects.filter(username=name).first()
+        if user is None:
+            print("absent")
+        else:
+            changed = []
+            if (user.email or "").lower() != email.lower():
+                user.email = email
+                changed.append("email")
+            if not user.is_superuser:
+                user.is_superuser = True
+                changed.append("is_superuser")
+            if not user.is_staff:
+                user.is_staff = True
+                changed.append("is_staff")
+            if changed:
+                user.save(update_fields=changed)
+            others = User.objects.filter(email__iexact=email).exclude(pk=user.pk)
+            for other in others:
+                print("ambiguous:" + other.username)
+            print(("changed:" + ",".join(changed)) if changed else "ok")
+  register: linkding_superuser
+  changed_when: "'changed:' in linkding_superuser.stdout"
+  no_log: true
+
+# Printed rather than failed. A second account holding the same address is not
+# something this play can safely repair, the bookmarks could be under either
+# one, but it does make the next sign-in ambiguous, and mozilla-django-oidc
+# answers ambiguity with a 500 and `Multiple users returned`. Say so loudly and
+# let a human merge them.
+- name: Report an ambiguous Linkding account
+  ansible.builtin.debug:
+    msg: >-
+      Another Linkding account carries the same email address as
+      {{ linkding_admin_user }}. The next OIDC sign-in will fail with "Multiple
+      users returned" until one of them is removed or given another address:
+      `docker exec -u www-data linkding python manage.py shell`.
+  when: "'ambiguous:' in linkding_superuser.stdout"
+
+- name: Report a Linkding superuser that does not exist yet
+  ansible.builtin.debug:
+    msg: >-
+      No Linkding account named {{ linkding_admin_user }}. The container creates
+      it on its very first start from LD_SUPERUSER_NAME; if this persists, the
+      name in `homelab/linkding` changed after that first start and the old
+      account is still the one holding the bookmarks.
+  when: "'absent' in linkding_superuser.stdout"

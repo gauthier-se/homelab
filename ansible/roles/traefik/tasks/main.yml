@@ -1,0 +1,219 @@
+---
+- name: Create the Traefik system group
+  ansible.builtin.group:
+    name: traefik
+    system: true
+
+- name: Create the Traefik system user
+  ansible.builtin.user:
+    name: traefik
+    group: traefik
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Create the Traefik configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: traefik
+    group: traefik
+    mode: "0750"
+  loop:
+    - /etc/traefik
+    - /etc/traefik/dynamic
+
+- name: Create the Traefik state directory (plugin cache lives here)
+  ansible.builtin.file:
+    path: "{{ traefik_state_dir }}"
+    state: directory
+    owner: traefik
+    group: traefik
+    mode: "0750"
+
+- name: Create the access log directory
+  ansible.builtin.file:
+    path: "{{ traefik_access_log | dirname }}"
+    state: directory
+    owner: traefik
+    group: traefik
+    mode: "0750"
+
+- name: Install logrotate
+  ansible.builtin.apt:
+    name: logrotate
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure access log rotation
+  ansible.builtin.template:
+    src: traefik-logrotate.j2
+    dest: /etc/logrotate.d/traefik
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the ACME storage file
+  ansible.builtin.file:
+    path: /etc/traefik/acme.json
+    state: touch
+    owner: traefik
+    group: traefik
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+
+# Deploy time, not boot time. Everything about this block exists so that
+# starting Traefik touches nothing but the local disk: see the plugin variables
+# in defaults/main.yml for the boot that proved why.
+- name: Vendor the CrowdSec bouncer plugin
+  when: traefik_crowdsec_enabled | bool
+  vars:
+    plugin_dir: "{{ traefik_state_dir }}/plugins-local/src/{{ traefik_crowdsec_plugin_module }}"
+  block:
+    - name: Check whether the vendored plugin is the pinned version
+      ansible.builtin.stat:
+        path: "{{ plugin_dir }}/.homelab-{{ traefik_crowdsec_plugin_version }}"
+      register: traefik_plugin_stamp
+
+    # The stamp carries the version, so a version bump misses it and the whole
+    # tree is replaced. Extracting over the top would leave files the new tag
+    # deleted, which is the kind of half-state Yaegi reports as a parse error
+    # three layers away from the cause.
+    - name: Install the pinned plugin source
+      when: not traefik_plugin_stamp.stat.exists
+      block:
+        - name: Drop any previously vendored version
+          ansible.builtin.file:
+            path: "{{ plugin_dir }}"
+            state: absent
+
+        - name: Create the local plugin tree
+          ansible.builtin.file:
+            path: "{{ plugin_dir }}"
+            state: directory
+            owner: traefik
+            group: traefik
+            mode: "0750"
+
+        - name: Unpack the plugin source
+          ansible.builtin.unarchive:
+            src: "https://github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin/archive/refs/tags/{{ traefik_crowdsec_plugin_version }}.tar.gz"
+            dest: "{{ plugin_dir }}"
+            remote_src: true
+            extra_opts:
+              - --strip-components=1
+            owner: traefik
+            group: traefik
+          notify: Restart traefik
+
+        - name: Stamp the version that was installed
+          ansible.builtin.copy:
+            content: "{{ traefik_crowdsec_plugin_version }}\n"
+            dest: "{{ plugin_dir }}/.homelab-{{ traefik_crowdsec_plugin_version }}"
+            owner: traefik
+            group: traefik
+            mode: "0644"
+
+    # Yaegi reads the manifest first; without it the plugin is not a plugin, and
+    # the error surfaces as an invalid middleware on every router that uses it.
+    - name: Verify the plugin manifest is present
+      ansible.builtin.stat:
+        path: "{{ plugin_dir }}/.traefik.yml"
+      register: traefik_plugin_manifest
+
+    - name: Fail when the vendored plugin has no manifest
+      ansible.builtin.assert:
+        that: traefik_plugin_manifest.stat.exists
+        fail_msg: >-
+          {{ plugin_dir }}/.traefik.yml is missing, so Traefik will start with
+          plugins disabled and every router using crowdsec@file will 404.
+
+- name: Install the Traefik binary
+  ansible.builtin.get_url:
+    url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_amd64.tar.gz"
+    dest: "/tmp/traefik_{{ traefik_version }}.tar.gz"
+    mode: "0644"
+
+- name: Extract the Traefik binary
+  ansible.builtin.unarchive:
+    src: "/tmp/traefik_{{ traefik_version }}.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include:
+      - traefik
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart traefik
+
+- name: Deploy the static Traefik configuration
+  ansible.builtin.template:
+    src: traefik.yaml.j2
+    dest: /etc/traefik/traefik.yaml
+    owner: traefik
+    group: traefik
+    mode: "0640"
+  notify: Restart traefik
+
+# Only where a backend actually speaks HTTPS. The DMZ instance overrides
+# `traefik_services` with two plain-HTTP backends, so it was carrying the
+# internal root purely because the default travelled there, harmless (the root
+# is public by construction) but it declared a trust relationship the segment
+# does not have. Same condition as the `serversTransports` block in
+# dynamic.yaml.j2, so the file and its reference appear and disappear together.
+- name: Install the internal PKI root so HTTPS backends can be verified
+  ansible.builtin.copy:
+    src: "{{ openbao_ca_cert }}"
+    dest: "{{ traefik_internal_ca_dest }}"
+    owner: traefik
+    group: traefik
+    mode: "0644"
+  when:
+    - openbao_ca_cert | length > 0
+    - traefik_services | map(attribute='url') | select('search', '^https://') | list | length > 0
+
+# A skipped task leaves the file where a previous run put it, so the declared
+# state and the disk would disagree for as long as the host lives. The DMZ has
+# once carried this root; this is what actually takes it back off.
+- name: Remove the internal PKI root where no backend speaks HTTPS
+  ansible.builtin.file:
+    path: "{{ traefik_internal_ca_dest }}"
+    state: absent
+  when: traefik_services | map(attribute='url') | select('search', '^https://') | list | length == 0
+
+- name: Deploy the dynamic Traefik configuration (routes + wildcard cert)
+  ansible.builtin.template:
+    src: dynamic.yaml.j2
+    dest: /etc/traefik/dynamic/services.yaml
+    owner: traefik
+    group: traefik
+    mode: "0640"
+  # No handler: the file provider watches this directory and reloads itself.
+
+- name: Deploy the Cloudflare credentials
+  ansible.builtin.template:
+    src: traefik.env.j2
+    dest: /etc/traefik/traefik.env
+    owner: traefik
+    group: traefik
+    mode: "0600"
+  no_log: true
+  notify: Restart traefik
+
+- name: Deploy the systemd unit
+  ansible.builtin.template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart traefik
+
+- name: Ensure Traefik is enabled and running
+  ansible.builtin.systemd_service:
+    name: traefik
+    enabled: true
+    state: started
+    daemon_reload: true

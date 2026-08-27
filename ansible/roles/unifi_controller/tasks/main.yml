@@ -1,0 +1,74 @@
+---
+# The UniFi package
+# depends on a Java the Debian repos do not carry, so Temurin from Adoptium is
+# added alongside MongoDB 7.0 and the UniFi repo.
+- name: Create the keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add the Adoptium (Temurin) GPG key
+  ansible.builtin.get_url:
+    url: https://packages.adoptium.net/artifactory/api/gpg/key/public
+    dest: /etc/apt/keyrings/adoptium.asc
+    mode: "0644"
+
+- name: Add the MongoDB GPG key
+  ansible.builtin.get_url:
+    url: "https://www.mongodb.org/static/pgp/server-{{ unifi_controller_mongodb_version }}.asc"
+    dest: /etc/apt/keyrings/mongodb.asc
+    mode: "0644"
+
+- name: Add the UniFi GPG key
+  ansible.builtin.get_url:
+    url: https://dl.ui.com/unifi/unifi-repo.gpg
+    dest: /etc/apt/keyrings/unifi-repo.gpg
+    mode: "0644"
+
+- name: Add the Adoptium apt repository
+  ansible.builtin.deb822_repository:
+    name: adoptium
+    types: deb
+    uris: https://packages.adoptium.net/artifactory/deb
+    suites: "{{ ansible_distribution_release }}"
+    components: main
+    signed_by: /etc/apt/keyrings/adoptium.asc
+    state: present
+
+# MongoDB publishes no trixie suite yet, bookworm packages are what the UniFi
+# controller is tested against anyway.
+- name: Add the MongoDB apt repository
+  ansible.builtin.deb822_repository:
+    name: "mongodb-org-{{ unifi_controller_mongodb_version }}"
+    types: deb
+    uris: http://repo.mongodb.org/apt/debian
+    suites: "bookworm/mongodb-org/{{ unifi_controller_mongodb_version }}"
+    components: main
+    signed_by: /etc/apt/keyrings/mongodb.asc
+    state: present
+
+- name: Add the UniFi apt repository
+  ansible.builtin.deb822_repository:
+    name: unifi
+    types: deb
+    uris: https://www.ui.com/downloads/unifi/debian
+    suites: stable
+    components: ubiquiti
+    signed_by: /etc/apt/keyrings/unifi-repo.gpg
+    state: present
+
+- name: Install Temurin, MongoDB and the UniFi controller
+  ansible.builtin.apt:
+    name:
+      - "{{ unifi_controller_temurin_package }}"
+      - mongodb-org-server
+      - unifi
+    state: present
+    update_cache: true
+
+- name: Ensure the UniFi controller is enabled and running
+  ansible.builtin.systemd_service:
+    name: unifi
+    enabled: true
+    state: started

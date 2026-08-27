@@ -1,0 +1,23 @@
+---
+# CrowdSec reads Traefik's access log, decides who is hostile, and shares
+# nothing outward unless you opt in. The bouncer that enforces the decision is
+# a Traefik plugin, configured by the traefik role.
+crowdsec_acquis_log: /var/log/traefik/access.log
+crowdsec_collections:
+  - crowdsecurity/traefik
+  - crowdsecurity/http-cve
+  - crowdsecurity/base-http-scenarios
+crowdsec_bouncer_name: traefik-bouncer
+crowdsec_bouncer_key_file: /etc/crowdsec/traefik-bouncer.key
+crowdsec_bouncer_key_group: traefik
+
+# Sources no scenario ever evaluates. `null` keeps the hub's
+# `crowdsecurity/whitelists`, which exempts every RFC1918 range wholesale.
+#
+# ⚠️ That default is the right one facing the internet and completely wrong
+# facing a LAN, and the difference is invisible until you go and count. On the
+# internal proxy it meant 163,790 access-log lines read, 163,790 whitelisted and
+# **zero** poured into a bucket: the engine parsed every request and could not,
+# by construction, reach a decision about any of them. Setting a list here
+# removes the hub parser and installs this one in its place.
+crowdsec_whitelist_cidrs: null

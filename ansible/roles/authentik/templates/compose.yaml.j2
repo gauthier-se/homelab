@@ -1,0 +1,91 @@
+# {{ ansible_managed }}
+services:
+  postgresql:
+    # `16-alpine` and not an exact patch, deliberately, unlike everything else
+    # here. A database major is a migration and must never move on its own; a
+    # patch inside a major is what you want applied without ceremony.
+    image: docker.io/library/postgres:16-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - database:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${PG_PASS}
+
+  redis:
+    # ⚠️ Not `redis:alpine`, which floats across majors: a `compose pull` could
+    # land a new Redis major on the identity provider with no line changing
+    # anywhere.
+    image: docker.io/library/redis:8.8.1-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis:/data
+
+  server:
+    image: ghcr.io/goauthentik/server:{{ authentik_version }}
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_FRESHRSS_CLIENT_SECRET: ${AUTHENTIK_FRESHRSS_CLIENT_SECRET}
+      AUTHENTIK_LINKDING_CLIENT_SECRET: ${AUTHENTIK_LINKDING_CLIENT_SECRET}
+    volumes:
+      - ./blueprints:/blueprints/custom:ro
+    # 9000 only. The outpost also listens on 9443 in TLS, but nothing here has
+    # ever spoken to it: the forward-auth middleware and the `auth.` route both
+    # go to the cleartext port, fronted by Traefik. Publishing a port no one
+    # calls is one more thing the host answers on.
+    ports:
+      - "9000:9000"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # The worker must not come up until the server is healthy. On a virgin
+  # database the two race through the initial migration: one holds an open
+  # transaction while the other blocks on ALTER TABLE, and the stack deadlocks
+  # with no error: it just sits there "unhealthy" forever.
+  worker:
+    image: ghcr.io/goauthentik/server:{{ authentik_version }}
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_FRESHRSS_CLIENT_SECRET: ${AUTHENTIK_FRESHRSS_CLIENT_SECRET}
+      AUTHENTIK_LINKDING_CLIENT_SECRET: ${AUTHENTIK_LINKDING_CLIENT_SECRET}
+    volumes:
+      - ./blueprints:/blueprints/custom:ro
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+
+volumes:
+  database:
+  redis:

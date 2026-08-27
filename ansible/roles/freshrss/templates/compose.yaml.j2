@@ -1,0 +1,97 @@
+# {{ ansible_managed }}
+#
+# Secrets are not in this file. Docker Compose interpolates `${...}` from the
+# `.env` file beside it (mode 0600), so the compose file stays readable and
+# diffable while the credentials do not.
+services:
+  db:
+    image: {{ freshrss_postgres_image }}
+    container_name: freshrss-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "{{ freshrss_db_name }}"
+      POSTGRES_USER: "{{ freshrss_db_user }}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      TZ: "{{ homelab_timezone }}"
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    # Not published: the only client is the container next to it, and an
+    # unauthenticated-by-network database port on Servers is exactly the kind of
+    # thing the VLAN split exists to avoid.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ freshrss_db_user }} -d {{ freshrss_db_name }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  freshrss:
+    image: {{ freshrss_image }}
+    container_name: freshrss
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "{{ freshrss_port }}:80"
+    volumes:
+      - ./data:/var/www/FreshRSS/data
+      - ./extensions:/var/www/FreshRSS/extensions
+    environment:
+      TZ: "{{ homelab_timezone }}"
+      CRON_MIN: "{{ freshrss_cron_min }}"
+      BASE_URL: "https://{{ freshrss_host }}"
+      # Which address gets logged, and which one FreshRSS believes. Only the
+      # internal proxy sits in front, so only it may be trusted here.
+      TRUSTED_PROXY: "{{ freshrss_trusted_proxy }}"
+{% if freshrss_oidc_enabled %}
+      # SSO on the web interface only. Upstream's Apache config applies
+      # `AuthType openid-connect` to the `p/i/` directory; `p/api/` is outside
+      # it, which is what keeps the Google Reader API reachable by mobile
+      # readers that cannot follow an authentication redirect.
+      OIDC_ENABLED: "1"
+      OIDC_PROVIDER_METADATA_URL: "{{ freshrss_oidc_metadata_url }}"
+      OIDC_CLIENT_ID: "{{ freshrss_oidc_client_id }}"
+      OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
+      OIDC_CLIENT_CRYPTO_KEY: "${OIDC_CRYPTO_KEY}"
+      OIDC_REMOTE_USER_CLAIM: "{{ freshrss_oidc_remote_user_claim }}"
+      OIDC_SCOPES: "{{ freshrss_oidc_scopes }}"
+      # Without these mod_auth_openidc builds an http:// redirect URI from what
+      # it sees locally, and Authentik rejects it as unregistered.
+      OIDC_X_FORWARDED_HEADERS: "{{ freshrss_oidc_x_forwarded_headers }}"
+{% endif %}
+      # Passed to `cli/do-install.php` and `cli/create-user.php` by the image's
+      # entrypoint, which re-runs both on every start and treats "already done"
+      # as success, so this is idempotent, not first-boot-only as the upstream
+      # README suggests. No comment lines inside these blocks: the entrypoint
+      # word-splits them straight into the command line.
+      #
+      # `--auth-type http_auth` is the load-bearing one. Without it FreshRSS
+      # keeps its own login form and ignores REMOTE_USER, so Apache would
+      # authenticate through Authentik and the app would still ask for a
+      # password. And `--default-user` has to be the *Authentik* username:
+      # FreshRSS matches the preferred_username claim against its user list, and
+      # a mismatch locks the administrator out of their own instance.
+      FRESHRSS_INSTALL: |-
+        --api-enabled
+        --auth-type http_auth
+        --base-url https://{{ freshrss_host }}
+        --db-base {{ freshrss_db_name }}
+        --db-host db
+        --db-password ${DB_PASSWORD}
+        --db-type pgsql
+        --db-user {{ freshrss_db_user }}
+        --default-user ${ADMIN_USER}
+        --language fr
+      FRESHRSS_USER: |-
+        --api-password ${ADMIN_API_PASSWORD}
+        --email ${ADMIN_EMAIL}
+        --language fr
+        --password ${ADMIN_PASSWORD}
+        --user ${ADMIN_USER}
+    healthcheck:
+      test: ["CMD", "cli/health.php"]
+      timeout: 10s
+      start_period: 60s
+      interval: 75s
+      retries: 3

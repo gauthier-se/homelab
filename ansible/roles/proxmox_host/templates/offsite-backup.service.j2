@@ -1,0 +1,22 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Encrypted offsite backup of the irreplaceable perimeter
+Documentation=https://github.com/gauthier-se/homelab
+# Both vzdump jobs write to the same USB disk and compete for the same IO.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/offsite-backup.sh
+# ⚠️ systemd sets no HOME, so restic finds no cache directory and runs without
+# one: "neither $XDG_CACHE_HOME nor $HOME are defined". An uncached restic
+# re-fetches the repository index on every invocation, which grows with the
+# repository and is billed as Class B operations, for data that never changes.
+Environment=RESTIC_CACHE_DIR={{ proxmox_host_offsite_cache_dir }}
+CacheDirectory=restic
+# The snapshots and mounts are torn down by a trap, but a hard kill skips traps,
+# so the next run clears whatever is left rather than trusting this.
+TimeoutStartSec=4h
+Nice=10
+IOSchedulingClass=idle

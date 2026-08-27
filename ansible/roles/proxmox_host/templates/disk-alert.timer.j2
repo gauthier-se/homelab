@@ -1,0 +1,13 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Daily disk space check
+
+[Timer]
+# Morning rather than the middle of the night: this one is meant to be read, and
+# it runs after the backups so a disk the backups filled shows up the same day.
+OnCalendar={{ proxmox_host_disk_oncalendar }}
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

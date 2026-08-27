@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+#
+# Watch every place this node can run out of room, and say so on the phone.
+#
+# A full disk fails silently AND misleadingly: apt-get update cannot write its
+# lists, so `apt list --upgradable` cheerfully reports zero packages.
+#
+# Three things a plain `df` loop misses:
+#
+# 1. Percentages are the wrong unit on a big disk. /mnt/hdd sits at 94% and is
+#    healthy, because 6% of 18 TB is a terabyte. The two large filesystems get
+#    an absolute floor in GB instead; only the small ones keep a percentage.
+#
+# 2. ⚠️ The thin pool is the silent killer. Every guest volume is
+#    allocate-on-write out of one pool. `df` inside a guest cannot see it, and
+#    when it fills, every guest breaks at once, including those sitting at 20%.
+#
+# 3. Thin metadata exhausts separately, with its own percentage and its own
+#    failure: the pool can have terabytes free and still wedge because it ran
+#    out of room to describe them.
+#
+# Guest allocation and guest `df` disagree, and both are right: without discard,
+# blocks freed inside a guest never return to the pool. One predicts "the
+# application cannot write", the other "the pool will fill".
+
+set -uo pipefail
+
+# Overridable from the environment so the alarm can be made to ring on demand.
+# A watchdog nobody has ever seen fire is an untested assumption, which is the
+# lesson this phase keeps re-learning:
+#   FS_PCT=5 POOL_PCT=5 GUEST_PCT=5 /usr/local/bin/disk-alert.sh
+FS_PCT=${FS_PCT:-{{ proxmox_host_disk_fs_percent }}}
+POOL_PCT=${POOL_PCT:-{{ proxmox_host_disk_pool_percent }}}
+GUEST_PCT=${GUEST_PCT:-{{ proxmox_host_disk_guest_percent }}}
+VG=pve
+
+alerts=()
+alert_count=0
+checked=0
+
+# Deliberately a function rather than an inline array append plus a counter.
+# The count cannot be taken the usual way here: that construct opens with the
+# two characters Jinja reads as the start of a comment, and this file is a
+# template. Writing it inline as `[ test ] && alerts+=(x); alert_count=...`
+# looks right and is wrong, the semicolon breaks the short circuit, so the
+# counter increments every time and the probe alerts on a healthy node.
+add_alert() {
+  alerts+=("$1")
+  alert_count=$((alert_count + 1))
+}
+
+notify() {
+  local title="$1" priority="$2" body="$3" url
+  url=$(awk '/^webhook: ntfy$/{f=1} f && /^\turl /{print $2; exit}' /etc/pve/notifications.cfg 2>/dev/null)
+  [ -n "$url" ] || return 0
+  # ASCII only in headers: an em dash in a Title made every Proxmox notification
+  # fail on "failed to convert header to a str".
+  curl -sS --max-time 20 -H "Title: $title" -H "Priority: $priority" \
+    -d "$body" "$url" >/dev/null 2>&1 || true
+}
+
+# --- node filesystems, by percentage where a percentage means something -----
+while read -r target pcent; do
+  [ -n "$target" ] || continue
+  checked=$((checked + 1))
+  n=${pcent%\%}
+  [ "$n" -ge "$FS_PCT" ] && add_alert "$target at ${pcent} used"
+done < <(df --output=target,pcent / 2>/dev/null | tail -n +2)
+
+# --- the big two, by absolute free space ------------------------------------
+{% for mount, floor in proxmox_host_disk_absolute_floors.items() %}
+if avail=$(df --output=avail -BG {{ mount }} 2>/dev/null | tail -1 | tr -dc '0-9'); then
+  checked=$((checked + 1))
+  if [ -n "$avail" ] && [ "$avail" -lt {{ floor }} ]; then
+    add_alert "{{ mount }} down to ${avail}G free (floor {{ floor }}G)"
+  fi
+fi
+{% endfor %}
+
+# --- the thin pool: data and metadata, separately ---------------------------
+read -r pool_data pool_meta < <(lvs --noheadings -o data_percent,metadata_percent "$VG/data" 2>/dev/null)
+if [ -n "${pool_data:-}" ]; then
+  checked=$((checked + 1))
+  # Integer compare: lvs reports one decimal and there is no float in test(1).
+  [ "${pool_data%%.*}" -ge "$POOL_PCT" ] && add_alert "thin pool DATA at ${pool_data}% - every guest fails at once when this hits 100"
+  [ "${pool_meta%%.*}" -ge "$POOL_PCT" ] && add_alert "thin pool METADATA at ${pool_meta}% - wedges the pool even with data space free"
+fi
+
+# --- guest filesystems ------------------------------------------------------
+for conf in /etc/pve/lxc/*.conf; do
+  [ -e "$conf" ] || continue
+  id=$(basename "$conf" .conf)
+  pct status "$id" 2>/dev/null | grep -q running || continue
+  pcent=$(pct exec "$id" -- df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+  [ -n "$pcent" ] || continue
+  checked=$((checked + 1))
+  [ "$pcent" -ge "$GUEST_PCT" ] && add_alert "guest $id rootfs at ${pcent}% used"
+done
+
+# A watchdog that checks nothing and reports success is the failure mode this
+# lab already paid for once, with verify-backups.sh globbing pruned archives.
+if [ "$checked" -lt 5 ]; then
+  notify "Disk watch BROKEN" 5 "Only $checked check(s) ran. The probe itself is wrong."
+  exit 2
+fi
+
+if [ "$alert_count" -gt 0 ]; then
+  printf '%s\n' "${alerts[@]}"
+  notify "Disk space WARNING" 5 "$(printf '%s\n' "${alerts[@]}")"
+  exit 1
+fi
+
+echo "$checked check(s), all below threshold"
+exit 0

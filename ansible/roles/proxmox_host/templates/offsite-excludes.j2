@@ -1,0 +1,63 @@
+# {{ ansible_managed }}
+#
+# Everything in a guest's rootfs goes offsite EXCEPT what is named here.
+#
+# The direction matters. A list of what to *include* fails silently when a new
+# service appears, which is exactly how preupgrade-backup.sh came to skip
+# FreshRSS, Obsidian sync and Home Assistant. A list of what to *exclude* fails
+# loudly: the worst case is that the repository grows and someone notices.
+#
+# Nothing here is irreplaceable. Every line is either rebuilt by Ansible, re-
+# pulled from a registry, or re-downloaded by the service itself.
+#
+# Note what is absent: the 18 TB library needs no rule. It lives on a bind mount
+# from /mnt/hdd, which is not part of any guest's LVM volume, so snapshotting
+# the rootfs cannot reach it. Structural, not a rule someone can delete.
+
+# --- operating system: Ansible rebuilds all of it -------------------------
+{{ proxmox_host_offsite_mount }}/*/usr
+{{ proxmox_host_offsite_mount }}/*/bin
+{{ proxmox_host_offsite_mount }}/*/sbin
+{{ proxmox_host_offsite_mount }}/*/lib
+{{ proxmox_host_offsite_mount }}/*/lib64
+{{ proxmox_host_offsite_mount }}/*/boot
+{{ proxmox_host_offsite_mount }}/*/proc
+{{ proxmox_host_offsite_mount }}/*/sys
+{{ proxmox_host_offsite_mount }}/*/dev
+{{ proxmox_host_offsite_mount }}/*/run
+{{ proxmox_host_offsite_mount }}/*/tmp
+{{ proxmox_host_offsite_mount }}/*/var/tmp
+{{ proxmox_host_offsite_mount }}/*/var/cache
+{{ proxmox_host_offsite_mount }}/*/var/log
+{{ proxmox_host_offsite_mount }}/*/var/lib/apt
+
+# --- container images: re-pulled, never authored here ---------------------
+# /var/lib/docker/volumes is deliberately NOT here. That is where Authentik's
+# PostgreSQL and every other named volume lives, and it is the data.
+{{ proxmox_host_offsite_mount }}/*/var/lib/docker/overlay2
+{{ proxmox_host_offsite_mount }}/*/var/lib/docker/image
+{{ proxmox_host_offsite_mount }}/*/var/lib/docker/buildkit
+{{ proxmox_host_offsite_mount }}/*/var/lib/containerd
+
+# --- Jellyfin: 12 GB of cache in front of a 284 MB database ---------------
+# metadata/ and subtitles/ are re-fetched from the internet on demand. What
+# cannot be re-fetched is jellyfin.db: the accounts and the watch history.
+{{ proxmox_host_offsite_mount }}/*/var/lib/jellyfin/metadata
+{{ proxmox_host_offsite_mount }}/*/var/lib/jellyfin/data/subtitles
+{{ proxmox_host_offsite_mount }}/*/var/lib/jellyfin/data/imdb-ratings-cache
+{{ proxmox_host_offsite_mount }}/*/var/lib/jellyfin/plugins
+{{ proxmox_host_offsite_mount }}/*/var/lib/jellyfin/temp
+{{ proxmox_host_offsite_mount }}/*/var/lib/jellyfin/transcodes
+
+# --- *arr: posters, logs, and their own rolling backups -------------------
+# Backups/ is the applications' internal weekly dump. Keeping it would mean
+# paying to store a stale copy of the database sitting next to it.
+{{ proxmox_host_offsite_mount }}/*/opt/arr-stack/*/config/MediaCover
+{{ proxmox_host_offsite_mount }}/*/opt/arr-stack/*/config/logs
+{{ proxmox_host_offsite_mount }}/*/opt/arr-stack/*/config/logs.db
+{{ proxmox_host_offsite_mount }}/*/opt/arr-stack/*/config/logs.db-shm
+{{ proxmox_host_offsite_mount }}/*/opt/arr-stack/*/config/logs.db-wal
+{{ proxmox_host_offsite_mount }}/*/opt/arr-stack/*/config/Backups
+
+# --- UniFi: the controller's own logs -------------------------------------
+{{ proxmox_host_offsite_mount }}/*/var/lib/unifi/logs

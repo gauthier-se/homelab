@@ -1,0 +1,47 @@
+# {{ ansible_managed }}
+#
+# No Docker socket is mounted into either container, on purpose. Homepage and
+# Uptime Kuma can both read one to show container state, but the only
+# containers on *this* host are these two, and everything actually worth
+# watching runs on other guests. Reaching those would mean publishing a Docker
+# API over the network, which is a root shell on the host that publishes it.
+# Reachability is established the boring way instead: an HTTP probe per service.
+services:
+  homepage:
+    image: {{ dashboard_homepage_image }}
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      # Comma-separated, and it must include every name the browser may use.
+      HOMEPAGE_ALLOWED_HOSTS: "{{ dashboard_homepage_host }},{{ ansible_facts['default_ipv4']['address'] }}:{{ dashboard_homepage_port }}"
+      TZ: "{{ homelab_timezone }}"
+    env_file:
+      - ./homepage.env
+    volumes:
+      - ./homepage/config:/app/config
+      # Read-only, and read-only again at the Proxmox mount point: the resources
+      # widget needs to stat the filesystem, and nothing more.
+      - {{ dashboard_media_root }}:{{ dashboard_media_root }}:ro
+    ports:
+      - "{{ dashboard_homepage_port }}:3000"
+
+  uptime-kuma:
+    image: {{ dashboard_uptimekuma_image }}
+    container_name: uptime-kuma
+    restart: unless-stopped
+    # ICMP needs a raw socket, which an unprivileged container does not get:
+    # without this every Ping monitor sits in Pending forever and never says
+    # why. It is the only way to watch the switch and the access point, which
+    # expose nothing else worth probing.
+    cap_add:
+      - NET_RAW
+    environment:
+      TZ: "{{ homelab_timezone }}"
+    volumes:
+      # Monitors, heartbeat history and status pages live here, in the MariaDB
+      # instance the 2.x image embeds (1.x used SQLite; db-config.json records
+      # which). ⚠️ This directory is the only copy of the monitoring
+      # configuration: it is not reconstructible from this repo.
+      - ./uptime-kuma:/app/data
+    ports:
+      - "{{ dashboard_uptimekuma_port }}:3001"

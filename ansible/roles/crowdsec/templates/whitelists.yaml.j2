@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# Replaces the hub's crowdsecurity/whitelists, which exempts every private range
+# and therefore every client this proxy will ever see. Listed here are the
+# sources a ban would cost more than it buys; everything else is fair game.
+name: homelab/whitelists
+description: "Sources this instance never bans"
+whitelist:
+  reason: "homelab trusted sources"
+  ip:
+    - "::1"
+  cidr:
+{% for cidr in crowdsec_whitelist_cidrs %}
+    - "{{ cidr }}"
+{% endfor %}

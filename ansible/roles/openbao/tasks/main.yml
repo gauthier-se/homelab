@@ -1,0 +1,85 @@
+---
+- name: Download the OpenBao Debian package
+  ansible.builtin.get_url:
+    url: "https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/openbao_{{ openbao_version }}_linux_amd64.deb"
+    dest: "/tmp/openbao_{{ openbao_version }}.deb"
+    mode: "0644"
+
+- name: Install OpenBao
+  ansible.builtin.apt:
+    deb: "/tmp/openbao_{{ openbao_version }}.deb"
+    state: present
+
+- name: Manage the listener certificate from the internal PKI
+  when: openbao_tls_managed | bool
+  block:
+    - name: Create the TLS directory
+      ansible.builtin.file:
+        path: /etc/openbao/tls
+        state: directory
+        owner: openbao
+        group: openbao
+        mode: "0750"
+
+    - name: Install the PKI issuing token
+      ansible.builtin.copy:
+        content: "{{ openbao_pki_token }}\n"
+        dest: "{{ openbao_tls_token_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Deploy the certificate renewal script
+      ansible.builtin.template:
+        src: openbao-cert-renew.sh.j2
+        dest: /usr/local/bin/openbao-cert-renew.sh
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Deploy the renewal service and timer
+      ansible.builtin.template:
+        src: "openbao-cert-renew.{{ item }}.j2"
+        dest: "/etc/systemd/system/openbao-cert-renew.{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - service
+        - timer
+
+    - name: Enable the renewal timer
+      ansible.builtin.systemd_service:
+        name: openbao-cert-renew.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # Runs before the config below points the listener at these paths, so the
+    # files exist by the time OpenBao reads them.
+    - name: Issue the certificate if it is missing or near expiry
+      ansible.builtin.command: /usr/local/bin/openbao-cert-renew.sh
+      register: openbao_cert_run
+      changed_when: "'issuing a new certificate' in openbao_cert_run.stdout"
+
+- name: Deploy the OpenBao configuration
+  ansible.builtin.template:
+    src: openbao.hcl.j2
+    dest: /etc/openbao/openbao.hcl
+    owner: openbao
+    group: openbao
+    mode: "0640"
+  notify: Restart openbao
+
+- name: Ensure OpenBao is enabled and running
+  ansible.builtin.systemd_service:
+    name: openbao
+    enabled: true
+    state: started
+
+- name: Remind the operator to initialise and unseal
+  ansible.builtin.debug:
+    msg: >-
+      OpenBao is installed but sealed. Run `bao operator init` then unseal:
+      store the root token and unseal keys under $HOMELAB_SECRETS, never here.

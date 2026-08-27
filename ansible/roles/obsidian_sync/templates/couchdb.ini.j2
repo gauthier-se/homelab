@@ -1,0 +1,46 @@
+; {{ ansible_managed }}
+;
+; Loaded from /opt/couchdb/etc/local.d/. Ansible owns this file; CouchDB
+; persists any change made through the `_config` HTTP API into `docker.ini`
+; instead, which sorts after this one. So configure here, never by API, or the
+; two will disagree and the API copy will win.
+;
+; Everything below comes from obsidian-livesync's own provisioning script
+; (utils/couchdb/provision.ts), with two differences noted where they occur.
+; None of it is optional and none of it fails loudly: a missing setting shows up
+; as a mobile vault that never converges, with no error on either side.
+;
+; Sections follow CouchDB 3.2+, where `enable_cors`, `require_valid_user` and
+; `WWW-Authenticate` all moved from [httpd] to [chttpd]. The old section still
+; works as a fallback, so the plugin's script sets both; only the current one is
+; set here.
+
+[couchdb]
+; Create the system databases on first start. CouchDB 3 no longer autocreates
+; them, and without _users no non-admin account can exist, which would leave the
+; plugin with nothing but the administrator to use. This brings up _users and
+; _replicator, not _global_changes, which livesync does not need.
+single_node = true
+max_document_size = {{ obsidian_sync_max_document_size }}
+
+[chttpd]
+; Nothing is readable anonymously, including the database list.
+require_valid_user = true
+; ...except /_up. Not in the plugin's script: it is what lets the availability
+; probe ask whether the server is alive without carrying a credential. Verified
+; against chttpd_auth.erl, where /_up requires auth only when require_valid_user
+; is set and this one is not, while every other path requires it when either is.
+require_valid_user_except_for_up = true
+enable_cors = true
+; A vault attachment travels as a single request; the 64 MB default truncates
+; anything larger.
+max_http_request_size = {{ obsidian_sync_max_http_request_size }}
+; Makes a browser show a Basic prompt instead of a bare 401 body.
+WWW-Authenticate = Basic realm="couchdb"
+
+[cors]
+credentials = true
+origins = {{ obsidian_sync_cors_origins | join(',') }}
+headers = accept, authorization, content-type, origin, referer
+methods = GET, PUT, POST, HEAD, DELETE
+max_age = 3600

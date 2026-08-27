@@ -1,0 +1,30 @@
+---
+# PUID/PGID map to the media owner on the host; TZ from group_vars.
+media_arr_puid: 1000
+media_arr_pgid: 1000
+media_arr_media_root: /mnt/hdd
+# Exact tags, not `:latest`: with no tag to go back to, the rollback for a bad
+# pull is a snapshot or nothing.
+#
+# LinuxServer's tag is `<upstream version>-ls<their build number>`: the second
+# half moves when they rebuild the same application against a newer base image,
+# which is a real change worth having in the diff.
+media_arr_apps:
+  - { name: radarr, image: "lscr.io/linuxserver/radarr:6.3.0.10514-ls313", port: 7878 }
+  - { name: sonarr, image: "lscr.io/linuxserver/sonarr:4.0.19.2979-ls321", port: 8989 }
+  - { name: lidarr, image: "lscr.io/linuxserver/lidarr:3.1.0.4875-ls39", port: 8686 }
+  - { name: bazarr, image: "lscr.io/linuxserver/bazarr:v1.6.0-ls358", port: 6767 }
+  - { name: prowlarr, image: "lscr.io/linuxserver/prowlarr:2.5.2.5491-ls156", port: 9696 }
+
+# Two services the pre-wipe stack ran that the *arr list above does not cover:
+# flaresolverr is stateless (Prowlarr calls it for Cloudflare-protected
+# indexers), audiobookshelf keeps its own config + metadata dirs.
+media_arr_flaresolverr_image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
+media_arr_audiobookshelf_image: ghcr.io/advplyr/audiobookshelf:2.36.0
+
+# Seerr, the request front end, formerly Jellyseerr. Deliberately pinned while
+# everything around it rolls: it answers from the internet through the DMZ, so
+# it belongs with Traefik and Authentik in the "pin it and bump it on purpose"
+# group rather than with the *arr apps. Bump this line, replay the role, check
+# `requests.` still answers. Releases: github.com/seerr-team/seerr/releases
+media_arr_seerr_image: ghcr.io/seerr-team/seerr:v3.4.1

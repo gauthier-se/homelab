@@ -1,0 +1,136 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+
+  // JSON5 rather than JSON so this file can explain itself, like everything
+  // else here. Renovate reads either.
+  //
+  // Why custom managers everywhere: Renovate's built-in Docker managers read
+  // Dockerfiles and compose files. This repository has neither. Images are
+  // pinned in Ansible role defaults and pasted into Jinja templates, so each
+  // shape needs its own matcher. That is the price of the indirection, and it
+  // is worth naming, a pin nothing watches becomes a stale pin, which is how
+  // you end up running a two-year-old container on purpose instead of by
+  // accident. Pinning without a watcher trades one silent failure for another.
+  extends: ['config:recommended'],
+  timezone: 'Europe/Paris',
+
+  // Monday before 07:00, so a PR is waiting at the start of the week instead of
+  // arriving mid-evening.
+  schedule: ['* 0-6 * * 1'],
+  prConcurrentLimit: 5,
+  labels: ['dependencies'],
+  commitMessagePrefix: 'chore(deps):',
+
+  // Nothing automerges, anywhere. The whole point of pinning was to turn an
+  // update into a diff someone reads; automerge would hand that back.
+  automerge: false,
+
+  customManagers: [
+    {
+      // `<something>_image: registry/name:tag` in a role's defaults.
+      customType: 'regex',
+      description: 'Images pinned in Ansible role defaults',
+      managerFilePatterns: ['/^ansible/roles/.+/defaults/main\\.yml$/'],
+      matchStrings: [
+        // `(?:/…)*` and not `+`: Docker Hub official images have no slash
+        // at all (`couchdb:3.5.0`, `postgres:17-alpine`), and requiring one
+        // silently skipped two of them in the first draft of this file.
+        '_image:\\s*["\']?(?<depName>[^\\s"\':]+(?::\\d+)?(?:/[^\\s"\':]+)*):(?<currentValue>[^\\s"\']+)["\']?',
+      ],
+      datasourceTemplate: 'docker',
+    },
+    {
+      // `media_arr_apps` is a list of mappings, so the images are not one
+      // variable each and the matcher above does not see them.
+      customType: 'regex',
+      description: 'Images inside the media_arr_apps list',
+      managerFilePatterns: ['/^ansible/roles/media_arr/defaults/main\\.yml$/'],
+      matchStrings: [
+        'image:\\s*"(?<depName>[^\\s"\':]+(?::\\d+)?(?:/[^\\s"\':]+)+):(?<currentValue>[^\\s"]+)"',
+      ],
+      datasourceTemplate: 'docker',
+    },
+    {
+      // A few images are written literally in a compose template rather than
+      // going through a variable. The `{}` exclusions keep this from matching
+      // `image: {{ some_var }}`.
+      customType: 'regex',
+      description: 'Images written literally in a compose template',
+      managerFilePatterns: ['/^ansible/roles/.+/templates/compose\\.yaml\\.j2$/'],
+      matchStrings: [
+        'image:\\s*(?<depName>[a-z0-9.\\-]+(?::\\d+)?/[^\\s{}:]+):(?<currentValue>[^\\s{}]+)\\s*$',
+      ],
+      datasourceTemplate: 'docker',
+    },
+    {
+      // Versions carried as a bare variable, then pasted into an image tag or a
+      // download URL by the template. There is nothing in the string itself
+      // saying what it is a version *of*, so each one is annotated in place:
+      // which has the side benefit of telling a human reader where to look for
+      // release notes.
+      customType: 'regex',
+      description: 'Bare version variables, annotated at their declaration',
+      managerFilePatterns: ['/^ansible/roles/.+/defaults/main\\.yml$/'],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+\\w+_version:\\s*"(?<currentValue>[^"]+)"',
+      ],
+    },
+  ],
+
+  packageRules: [
+    {
+      // Grouped so a week is one review instead of nine, and kept away from the
+      // identity and secrets layer, whose blast radius is different in kind.
+      description: 'Media stack, grouped',
+      matchFileNames: ['ansible/roles/media_*/**'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'media stack',
+    },
+    {
+      // ⚠️ Never grouped. Authentik locks everyone out of nine applications
+      // when it breaks, OpenBao stops every play that reads a secret, and the
+      // proxy stands in front of both. One PR each, read on purpose.
+      description: 'Identity, secrets and proxy: one PR each',
+      matchFileNames: [
+        'ansible/roles/authentik/**',
+        'ansible/roles/openbao/**',
+        'ansible/roles/traefik/**',
+      ],
+      addLabels: ['read-before-merging'],
+    },
+    {
+      // ⚠️ A database major is a migration, not an update: it needs a dump
+      // taken first and a rollback plan. Patch and minor still arrive as PRs.
+      description: 'No automatic PRs for database majors',
+      matchDatasources: ['docker'],
+      matchPackageNames: [
+        'postgres',
+        'docker.io/library/postgres',
+        'couchdb',
+        'mariadb',
+      ],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+    {
+      // Nothing watches `unifi_controller_mongodb_version`, and that is a
+      // decision rather than an omission: the value is an apt *suite*
+      // (`bookworm/mongodb-org/8.0`), not a package version. Moving it rewrites
+      // a repository definition and migrates a database in one step, so it has
+      // no business arriving as a routine PR. It is bumped by hand, with the
+      // UniFi controller stopped.
+      description: 'Placeholder for the one version deliberately left unwatched',
+      matchPackageNames: ['mongodb-org'],
+      enabled: false,
+    },
+    {
+      // LinuxServer.io moves only the `-ls<n>` suffix when it rebuilds the same
+      // application against a newer base image. Those are real changes worth a
+      // PR, but they are not application updates and should not look like one.
+      description: 'LinuxServer rebuilds, grouped together',
+      matchDatasources: ['docker'],
+      matchPackageNames: ['/^lscr\\.io/linuxserver//'],
+      groupName: 'linuxserver images',
+    },
+  ],
+}

@@ -1,0 +1,178 @@
+---
+# A missing secret is an expected state, not an error: the vault path is filled
+# in by scripts/dashboard-collect-keys.py after the guest exists, and the vault
+# reseals on every restart. Failing the play here would mean no dashboard at
+# all whenever the vault is sealed, precisely when you want to look at one.
+- name: Read the widget credentials from OpenBao
+  block:
+    - name: Fetch the dashboard secret
+      ansible.builtin.set_fact:
+        dashboard_secrets: >-
+          {{ lookup('community.hashi_vault.vault_kv2_get',
+                    dashboard_vault_path,
+                    engine_mount_point='homelab',
+                    url=openbao_addr,
+                    token=openbao_token,
+                    ca_cert=openbao_ca_cert).secret }}
+      no_log: true
+  rescue:
+    - name: Fall back to a dashboard with no widget credentials
+      ansible.builtin.set_fact:
+        dashboard_secrets: {}
+
+    - name: Report that the dashboard will render links only
+      ansible.builtin.debug:
+        msg: >-
+          No usable `homelab/{{ dashboard_vault_path }}` secret (missing, or the
+          vault is sealed). Homepage will render every service as a plain link
+          with a reachability dot; run scripts/dashboard-collect-keys.py and
+          replay this role to add the widgets.
+
+# The six *arr keys are read from the host that generated them rather than from
+# the vault copy, which is why this runs after the block above and overwrites
+# what it found. See the comment on `dashboard_arr_discover` in defaults.
+#
+# No failure mode here may cost a dashboard, and it takes three guards, not one,
+# because Ansible sorts failures into three kinds:
+#   - a file that is not there yet (container never started) -> `failed_when:
+#     false`, and the extract task skips what has no content;
+#   - an unreachable host -> `ignore_unreachable`, which `rescue` does NOT
+#     catch: an unreachable host aborts the play for it, rescue or no rescue;
+#   - a file that is there but unparseable (settings.json mid-write) -> the
+#     rescue below, since that one really is a task failure.
+# All three leave the vault copy standing.
+- name: Discover the *arr API keys on the host that holds them
+  when: dashboard_arr_discover | bool
+  block:
+    - name: Read the *arr configuration files
+      ansible.builtin.slurp:
+        src: "{{ dashboard_arr_root }}/{{ item.value.file }}"
+      loop: "{{ dashboard_arr_sources | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      delegate_to: "{{ dashboard_arr_host }}"
+      register: dashboard_arr_slurp
+      failed_when: false
+      ignore_unreachable: true
+      no_log: true
+
+    - name: Extract each API key from the file that carries it
+      ansible.builtin.set_fact:
+        dashboard_arr_keys: >-
+          {{ dashboard_arr_keys | default({}) | combine({
+               item.item.key:
+                 ((item.content | b64decode
+                   | regex_findall(item.item.value.regex, multiline=True)) + [''])
+                 | first
+             }) }}
+      loop: "{{ dashboard_arr_slurp.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.content is defined
+      no_log: true
+
+    # Merged here rather than once at the end, so that a later source blowing up
+    # cannot throw away what this one already established. An empty capture is
+    # dropped: the file was there but the key was not, which is not a reason to
+    # blank a value the vault still holds.
+    - name: Let the discovered *arr keys win over the vault copy
+      ansible.builtin.set_fact:
+        dashboard_secrets: >-
+          {{ dashboard_secrets | combine(
+               dashboard_arr_keys | default({}) | dict2items
+               | rejectattr('value', 'eq', '') | items2dict) }}
+      no_log: true
+
+    - name: Read the Seerr settings
+      ansible.builtin.slurp:
+        src: "{{ dashboard_arr_root }}/{{ dashboard_seerr_settings }}"
+      delegate_to: "{{ dashboard_arr_host }}"
+      register: dashboard_seerr_slurp
+      failed_when: false
+      ignore_unreachable: true
+      no_log: true
+
+    - name: Let the Seerr key win over the vault copy
+      ansible.builtin.set_fact:
+        dashboard_secrets: >-
+          {{ dashboard_secrets | combine({'seerr_key': dashboard_seerr_key}) }}
+      vars:
+        dashboard_seerr_key: >-
+          {{ (dashboard_seerr_slurp.content | b64decode | from_json)
+             .get('main', {}).get('apiKey', '') }}
+      when:
+        - dashboard_seerr_slurp.content is defined
+        - dashboard_seerr_key | length > 0
+      no_log: true
+
+  rescue:
+    - name: Report that discovery failed and the vault copy stands
+      ansible.builtin.debug:
+        msg: >-
+          Could not read the *arr API keys from `{{ dashboard_arr_host }}`.
+          Falling back to whatever `homelab/{{ dashboard_vault_path }}` holds,
+          which may be stale if a container was rebuilt since it was written.
+
+- name: Create the dashboard project directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ dashboard_dir }}"
+    - "{{ dashboard_dir }}/homepage"
+    - "{{ dashboard_dir }}/homepage/config"
+
+# Not root:root like the others. Uptime Kuma runs its node process as root but
+# drops the embedded MariaDB to uid 1000, and this directory is what lands on
+# /app/data, owned by root and mode 0750, uid 1000 cannot even traverse it, so
+# the database never initialises and the container crash-loops forever. Root
+# still reaches everything here by bypassing the check.
+- name: Create the Uptime Kuma data directory
+  ansible.builtin.file:
+    path: "{{ dashboard_dir }}/uptime-kuma"
+    state: directory
+    owner: "{{ dashboard_uptimekuma_uid }}"
+    group: "{{ dashboard_uptimekuma_gid }}"
+    mode: "0750"
+
+- name: Deploy the Homepage configuration
+  ansible.builtin.template:
+    src: "homepage/{{ item }}.j2"
+    dest: "{{ dashboard_dir }}/homepage/config/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - settings.yaml
+    - services.yaml
+    - widgets.yaml
+    - bookmarks.yaml
+  # Homepage watches its config directory and reloads on change; no handler.
+
+- name: Deploy the Homepage credentials
+  ansible.builtin.template:
+    src: homepage.env.j2
+    dest: "{{ dashboard_dir }}/homepage.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  # The credentials are read at process start, so this one does need a restart.
+  notify: Restart dashboard stack
+
+- name: Deploy the dashboard compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ dashboard_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart dashboard stack
+
+- name: Start the dashboard stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ dashboard_dir }}"
+    state: present

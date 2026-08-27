@@ -1,0 +1,37 @@
+# {{ ansible_managed }}
+ui = true
+
+# Integrated storage. The "file" backend the docs still show is deprecated and
+# goes away in 2.7, starting on raft avoids a migration on a live vault.
+storage "raft" {
+  path    = "/opt/openbao/data"
+  node_id = "{{ inventory_hostname }}"
+}
+
+listener "tcp" {
+  address       = "{{ openbao_api_ip }}:8200"
+  tls_disable   = false
+  tls_cert_file = "{{ openbao_tls_cert }}"
+  tls_key_file  = "{{ openbao_tls_key }}"
+
+  # Re-enables the legacy unauthenticated generate-root ceremony, off by default
+  # since 2.5.3. It is a listener setting, not a top-level one: put it at the
+  # root of the file and the server logs "unknown or unsupported field" and
+  # carries on regardless.
+  #
+  # Without it the unseal keys only *unseal*: the replacement
+  # `sys/generate-root-token/*` endpoints need a token to even start the
+  # ceremony, so revoking the last root token would leave the vault unable to
+  # ever have one again, and the five keys in the password manager would be a
+  # false sense of safety.
+  #
+  # The risk upstream cites is that an unauthenticated caller can cancel an
+  # in-flight root generation. They still cannot complete one without three
+  # keys, so the worst case is a denial of *recovery* by someone already inside
+  # Core, a segment the firewall matrix only opens on service ports. Accepted
+  # deliberately so that three keys are enough to take the lab back.
+  disable_unauthed_generate_root_endpoints = false
+}
+
+api_addr     = "https://{{ openbao_api_ip }}:8200"
+cluster_addr = "https://{{ openbao_api_ip }}:8201"

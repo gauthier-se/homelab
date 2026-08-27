@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+{{ traefik_access_log }} {
+    daily
+    rotate {{ traefik_access_log_keep_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 traefik traefik
+    # Traefik holds the file open; USR1 makes it reopen instead of writing into
+    # a rotated-away inode and silently logging nothing.
+    postrotate
+        systemctl kill -s USR1 traefik.service 2>/dev/null || true
+    endscript
+}

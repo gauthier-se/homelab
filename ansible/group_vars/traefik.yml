@@ -1,0 +1,27 @@
+---
+# Detection runs here too. The internal proxy fronts the admin apps and the
+# vault UI, and anything already inside the LAN is precisely what SSO alone
+# does not stop.
+traefik_crowdsec_enabled: true
+
+# Enforcement is aimed at the segments that are not trusted by design. IoT (40)
+# is the reason this instance needs it at all: the Apple TV reaches this proxy
+# on 443, and through it every internal vhost, by one deliberate firewall rule.
+# Servers (20) and Core (25) are in scope because a compromised container is the
+# other way in.
+#
+# ⚠️ The cost, stated plainly: a banned Apple TV is Jellyfin off the television.
+# Recovery is `cscli decisions delete --ip <address>` on this host.
+crowdsec_whitelist_cidrs:
+  - 127.0.0.0/8
+  # Management: the plane from which a decision gets reversed, so it must never
+  # be the thing that is banned.
+  - 10.10.10.0/24
+  # Trusted: the devices that live here.
+  - 10.10.30.0/24
+  # The Servers gateway, which is the source address remote traffic carries once
+  # OPNsense has routed it in from the tailnet, plus the tailnet's own range for
+  # the case where it has not been rewritten. Traffic arriving over Tailscale is
+  # already treated as trusted by the firewall; this keeps the two consistent.
+  - 10.10.20.1/32
+  - 100.64.0.0/10

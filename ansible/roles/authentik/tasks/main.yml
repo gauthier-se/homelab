@@ -1,0 +1,66 @@
+---
+- name: Create the Authentik project directory
+  ansible.builtin.file:
+    path: /opt/authentik
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create the blueprints directory
+  ansible.builtin.file:
+    path: /opt/authentik/blueprints
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the forward-auth blueprint
+  ansible.builtin.template:
+    src: forward-auth.yaml.j2
+    dest: /opt/authentik/blueprints/forward-auth.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart authentik
+
+- name: Deploy the FreshRSS OIDC blueprint
+  ansible.builtin.template:
+    src: oidc-freshrss.yaml.j2
+    dest: /opt/authentik/blueprints/oidc-freshrss.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart authentik
+
+- name: Deploy the Linkding OIDC blueprint
+  ansible.builtin.template:
+    src: oidc-linkding.yaml.j2
+    dest: /opt/authentik/blueprints/oidc-linkding.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart authentik
+
+- name: Deploy the Authentik compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: /opt/authentik/compose.yaml
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart authentik
+
+- name: Deploy the Authentik environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /opt/authentik/.env
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart authentik
+
+- name: Start the Authentik stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/authentik
+    state: present

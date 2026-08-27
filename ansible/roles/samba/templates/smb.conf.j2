@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+[global]
+   workgroup = WORKGROUP
+   server string = homelab media
+   security = user
+   map to guest = never
+   hosts allow = {{ samba_hosts_allow }}
+   hosts deny = 0.0.0.0/0
+   log file = /var/log/samba/%m.log
+   max log size = 1000
+
+[{{ samba_share_name }}]
+   path = {{ samba_media_path }}
+   browseable = yes
+   read only = no
+   valid users = {{ samba_user }}
+   create mask = 0664
+   directory mask = 0775
+   force create mode = 0664
+   force directory mode = 0775

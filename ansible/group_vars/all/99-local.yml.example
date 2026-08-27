@@ -1,0 +1,17 @@
+---
+# Copy to 99-local.yml (untracked) and fill in the real identifiers.
+# Loads after 00-defaults.yml, so whatever is set here wins.
+
+homelab_domain: home.yourdomain.tld
+acme_email: you@yourdomain.tld
+
+# Path on the control node to the exported root CA of the private PKI.
+# Bootstrap material lives outside the repository, under $HOMELAB_SECRETS.
+# Nothing that opens anything is committed here, encrypted or not.
+# Not a `~/...` string: Ansible passes it to the lookup verbatim, and nothing
+# expands the tilde. HOMELAB_SECRETS is exported by the devshell and is the
+# same value on every control node.
+openbao_ca_cert: "{{ lookup('env', 'HOMELAB_SECRETS') }}/homelab-root-ca.pem"
+
+public_jellyfin_host: tv.yourdomain.tld
+public_requests_host: requests.yourdomain.tld

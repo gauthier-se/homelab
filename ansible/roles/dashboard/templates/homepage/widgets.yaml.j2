@@ -1,0 +1,48 @@
+---
+# {{ ansible_managed }}
+#
+# The header strip. Everything here answers a question you would otherwise open
+# a terminal or the Proxmox UI for.
+{# See services.yaml.j2, a literal Homepage variable reference, quoted so the
+   rendered file is still valid YAML. #}
+{% macro var(name) -%}
+{{ '"{{HOMEPAGE_VAR_' ~ name | upper ~ '}}"' }}
+{%- endmacro %}
+{% set s = dashboard_secrets %}
+
+- resources:
+    label: Dashboard host
+    cpu: true
+    memory: true
+    uptime: true
+    # `disk` reports the filesystem as the *container* sees it, which is why the
+    # media volume has to be bind-mounted in. The root entry is this guest's
+    # 8 GB disk; the second is the 18 TB the whole library lives on, and it is
+    # the one that will fill up first and quietly break downloads.
+    disk:
+      - /
+      - {{ dashboard_media_root }}
+    diskUnits: bytes
+    expanded: true
+
+{% if 'unifi_username' in s and 'unifi_password' in s %}
+- unifi_console:
+    url: {{ dashboard_backends.unifi }}
+    username: {{ var('unifi_username') }}
+    password: {{ var('unifi_password') }}
+{% endif %}
+
+# No API key, no account: Open-Meteo is queried by coordinates.
+- openmeteo:
+    label: Home
+    latitude: {{ dashboard_latitude }}
+    longitude: {{ dashboard_longitude }}
+    units: metric
+    cache: 5
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: short
+      timeStyle: short
+      hourCycle: h23

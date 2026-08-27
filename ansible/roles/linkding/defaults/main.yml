@@ -1,0 +1,81 @@
+---
+# Pinned, not `:latest`: an upgrade runs Django migrations against the SQLite
+# file on start, so it should be a reviewable one-line diff.
+#
+# The plain image, not `-plus`, which adds Chromium and single-file-cli to
+# archive a snapshot of every bookmark: 700 MB of image and a browser process
+# on the Servers VLAN, for a job this tool was not chosen to do.
+linkding_image: sissbruecker/linkding:1.46.2
+
+linkding_dir: /opt/linkding
+
+# Baked into the image: uwsgi.ini drops to `uid = www-data / gid = www-data`,
+# and the entrypoint chowns /etc/linkding/data to it on every start. The data
+# directory therefore has to be created as that gid here, or the two fight.
+linkding_www_uid: 33
+linkding_www_gid: 33
+linkding_port: 9090
+
+# linkding_host is in group_vars/all: Authentik needs the same value to build
+# the redirect URI it will accept.
+
+# Django compares the Origin header against the scheme and host it believes it
+# is serving. Traefik terminates TLS, so Django sees a plain-HTTP request, the
+# browser sends an https:// Origin, and every POST including the sign-in
+# dies on "CSRF verification failed". Upstream's answer is this option rather
+# than the proxy header dance.
+linkding_csrf_trusted_origins: "https://{{ linkding_host }}"
+
+# --- SSO -------------------------------------------------------------------
+# Authentik authenticates the web interface natively, not by forward-auth, for
+# the same reason as FreshRSS but by a different mechanism: SSO here is Django
+# middleware, and the REST API authenticates on a `Authorization: Token` header
+# that never touches it. Forward-auth would sit in front of both and break the
+# browser extension.
+linkding_oidc_enabled: true
+linkding_oidc_client_id: linkding
+# mozilla-django-oidc wants the four endpoints spelled out, not a discovery
+# URL: unlike mod_auth_openidc it never fetches the metadata document.
+#
+# ⚠️ Three of the four are NOT under the application slug and one is. Authentik
+# serves authorize, token and userinfo once per instance and scopes them by
+# client_id; only the signing keys are per-provider. Confirm against
+# .../application/o/<slug>/.well-known/openid-configuration rather than guess.
+linkding_oidc_base: "https://auth.{{ homelab_domain }}/application/o"
+linkding_oidc_authorization_endpoint: "{{ linkding_oidc_base }}/authorize/"
+linkding_oidc_token_endpoint: "{{ linkding_oidc_base }}/token/"
+linkding_oidc_user_endpoint: "{{ linkding_oidc_base }}/userinfo/"
+linkding_oidc_jwks_endpoint: "{{ linkding_oidc_base }}/{{ linkding_oidc_client_id }}/jwks/"
+# `email` is not optional whatever this is set to: mozilla-django-oidc matches
+# an incoming identity to an existing account on the email claim, and refuses
+# the login outright if the scope is absent. `profile` carries
+# preferred_username, which only decides what a *newly created* account is
+# named. See the reconcile task for why both matter.
+linkding_oidc_scopes: "openid email profile"
+linkding_oidc_username_claim: preferred_username
+# The login form stays, as a way back in if Authentik is down. It costs
+# nothing: the superuser is created with an unusable password, so the form has
+# no credential to accept until `manage.py changepassword` sets one.
+linkding_disable_login_form: false
+
+# --- Secrets ---------------------------------------------------------------
+# Read from OpenBao at run time; nothing sensitive is stored in the repo.
+# Requires openbao_addr + openbao_token (see group_vars/all/00-defaults.yml).
+linkding_vault_path: linkding
+linkding_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            linkding_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+
+linkding_oidc_client_secret: "{{ linkding_vault.oidc_client_secret }}"
+
+# --- The account -----------------------------------------------------------
+# Must be the *Authentik* username and the *Authentik* email address, both of
+# them. The username names the account; the email is what the OIDC login is
+# matched on. ⚠️ A mismatch on either does not fail: it quietly creates a second
+# account, which is worse. See the reconcile task.
+linkding_admin_user: "{{ linkding_vault.admin_user }}"
+linkding_admin_email: "{{ linkding_vault.admin_email }}"

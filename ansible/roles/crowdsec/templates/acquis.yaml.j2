@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# Traefik writes JSON, so the parser must be told, fed the wrong format,
+# CrowdSec silently matches nothing and reports a healthy, useless engine.
+filenames:
+  - {{ crowdsec_acquis_log }}
+labels:
+  type: traefik

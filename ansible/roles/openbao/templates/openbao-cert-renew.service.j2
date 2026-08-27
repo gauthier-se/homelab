@@ -1,0 +1,9 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Renew the OpenBao listener certificate from its own PKI
+After=openbao.service
+Wants=openbao.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/openbao-cert-renew.sh

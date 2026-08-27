@@ -1,0 +1,82 @@
+---
+# Pinned, not `:latest`: the reader holds years of read state in PostgreSQL and
+# an upgrade is a schema migration, so it should be a reviewable one-line diff.
+#
+# The Debian image, not `-alpine`: OpenID Connect needs mod_auth_openidc, which
+# upstream ships only in the Debian variant (Docker/FreshRSS.Apache.conf).
+freshrss_image: freshrss/freshrss:1.28.0
+freshrss_postgres_image: postgres:17-alpine
+
+freshrss_dir: /opt/freshrss
+
+# Baked into postgres:*-alpine. The data directory must be owned by this uid, not
+# by root: see the task that creates it.
+freshrss_postgres_uid: 70
+freshrss_postgres_gid: 70
+
+# www-data inside the Debian image. Apache runs as it, and upstream's
+# cli/access-permissions.sh grants the *group* write on data/, so the mounted
+# directories have to carry this gid or the web process cannot create files.
+freshrss_www_gid: 33
+freshrss_port: 8080
+# freshrss_host is in group_vars/all: Authentik needs the same value to build
+# the redirect URI it will accept.
+
+# Feed refresh, in minutes past the hour. Twice an hour is plenty for a reader
+# nobody is watching for breaking news.
+freshrss_cron_min: "13,43"
+
+# The internal proxy is the only thing that reaches this container, so it is the
+# only proxy whose X-Forwarded-For may be believed.
+freshrss_trusted_proxy: "{{ traefik_internal_ip }}/32"
+
+# --- SSO -------------------------------------------------------------------
+# Authentik authenticates the web interface, natively rather than by
+# forward-auth. Upstream's Apache config puts `AuthType openid-connect` on
+# `p/i/` only; `p/api/` sits outside it, so the Google Reader API keeps
+# answering on its own API password and mobile readers still work.
+# The provider is declared in the authentik role's blueprint, not clicked in.
+freshrss_oidc_enabled: true
+freshrss_oidc_metadata_url: >-
+  https://auth.{{ homelab_domain }}/application/o/freshrss/.well-known/openid-configuration
+freshrss_oidc_client_id: freshrss
+# Authentik hands back `preferred_username`; FreshRSS matches it against its own
+# user list, so the Authentik username must equal the FreshRSS one.
+freshrss_oidc_remote_user_claim: preferred_username
+freshrss_oidc_scopes: "openid profile email"
+# Traefik terminates TLS, so Apache only learns the request was HTTPS from the
+# forwarded headers. Without this mod_auth_openidc builds an http:// redirect
+# URI, which no longer matches the one registered with Authentik.
+freshrss_oidc_x_forwarded_headers: "X-Forwarded-Proto X-Forwarded-Host"
+
+# --- Secrets ---------------------------------------------------------------
+# Read from OpenBao at run time; nothing sensitive is stored in the repo.
+# Requires openbao_addr + openbao_token (see group_vars/all/00-defaults.yml).
+freshrss_vault_path: freshrss
+freshrss_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            freshrss_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+
+freshrss_db_name: freshrss
+freshrss_db_user: freshrss
+freshrss_db_password: "{{ freshrss_vault.db_password }}"
+freshrss_oidc_client_secret: "{{ freshrss_vault.oidc_client_secret }}"
+# Opaque key mod_auth_openidc uses to encrypt its session cookie. Changing it
+# invalidates every open session, and nothing more.
+freshrss_oidc_crypto_key: "{{ freshrss_vault.oidc_crypto_key }}"
+
+# --- First-run install -----------------------------------------------------
+# FRESHRSS_INSTALL/FRESHRSS_USER run `cli/do-install.php` and
+# `cli/create-user.php` on the very first start only, against an empty data
+# volume. Later changes here do nothing: the install is then owned by the
+# database, which is the right place for it.
+freshrss_admin_user: "{{ freshrss_vault.admin_user }}"
+freshrss_admin_email: "{{ freshrss_vault.admin_email }}"
+freshrss_admin_password: "{{ freshrss_vault.admin_password }}"
+# Distinct from the account password on purpose: this one is typed into a phone
+# and travels in every API call, so it should not also open the web session.
+freshrss_admin_api_password: "{{ freshrss_vault.admin_api_password }}"

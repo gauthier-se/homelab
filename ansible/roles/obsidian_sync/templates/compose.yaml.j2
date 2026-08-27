@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+#
+# Secrets are not in this file. Docker Compose interpolates `${...}` from the
+# `.env` file beside it (mode 0600).
+services:
+  couchdb:
+    image: {{ obsidian_sync_image }}
+    container_name: couchdb
+    restart: unless-stopped
+    environment:
+      COUCHDB_USER: "${ADMIN_USER}"
+      COUCHDB_PASSWORD: "${ADMIN_PASSWORD}"
+      TZ: "{{ homelab_timezone }}"
+    ports:
+      - "{{ obsidian_sync_port }}:5984"
+    volumes:
+      - ./data:/opt/couchdb/data
+      # Read-only, and owned by uid 5984 on the host so the image's startup
+      # chown/chmod pass has nothing to do to it.
+      - ./etc/10-homelab.ini:/opt/couchdb/etc/local.d/10-homelab.ini:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5984/_up"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

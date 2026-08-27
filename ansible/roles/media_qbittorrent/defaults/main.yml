@@ -1,0 +1,33 @@
+---
+media_qbittorrent_puid: 1000
+media_qbittorrent_pgid: 1000
+media_qbittorrent_media_root: /mnt/hdd
+
+# Pinned to the version that was already running, so pinning changed nothing.
+media_qbittorrent_image: lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls471
+
+# ⚠️ `qmcgaw/gluetun:latest` builds from master, not from a release, so it
+# resolves to a commit that matches no published tag. On the container standing
+# between the download client and the internet, that means nothing to roll back
+# to. Pinned to a named release instead.
+#
+# After any bump here, the check is not that the container starts: it is that
+# qBittorrent's public address is still the VPN's and the forwarded port opens.
+media_qbittorrent_gluetun_image: qmcgaw/gluetun:v3.41.3
+
+# VPN settings are read from OpenBao at run time: nothing sensitive is stored
+# in the repo. Requires openbao_addr + openbao_token (see group_vars/all/).
+media_qbittorrent_vault_path: qbittorrent
+media_qbittorrent_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            media_qbittorrent_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+
+media_qbittorrent_vpn_service_provider: "{{ media_qbittorrent_vault.vpn_service_provider }}"
+media_qbittorrent_vpn_type: "{{ media_qbittorrent_vault.vpn_type }}"
+media_qbittorrent_wireguard_private_key: "{{ media_qbittorrent_vault.wireguard_private_key }}"
+media_qbittorrent_wireguard_addresses: "{{ media_qbittorrent_vault.wireguard_addresses }}"
+media_qbittorrent_server_countries: "{{ media_qbittorrent_vault.server_countries }}"

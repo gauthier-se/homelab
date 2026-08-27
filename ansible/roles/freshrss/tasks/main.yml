@@ -1,0 +1,100 @@
+---
+- name: Create the FreshRSS project directory
+  ansible.builtin.file:
+    path: "{{ freshrss_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Group www-data, group-writable on data/. Upstream's access-permissions.sh does
+# `chown -R :www-data` then `chmod -R g+w` on the data path, the top directory
+# included, because Apache creates files directly in it. Left root:root 0755 by
+# Ansible, the entrypoint's fix-up is undone on every replay and the web process
+# silently loses the right to create anything there, the existing files keep
+# working, which is what makes it hard to notice.
+#
+# extensions/ only gets read and traversal upstream, so it stays 0755; only its
+# group has to match.
+- name: Create the FreshRSS data directories
+  ansible.builtin.file:
+    path: "{{ freshrss_dir }}/{{ item.name }}"
+    state: directory
+    owner: root
+    group: "{{ freshrss_www_gid }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { name: data, mode: "0775" }
+    - { name: extensions, mode: "0755" }
+
+# Owned by the image's postgres uid, NOT by root, and this is load-bearing.
+# PostgreSQL refuses a PGDATA that is group- or world-readable, so it has to be
+# 0700, which means the owner is the only account that can even traverse it.
+#
+# Written as root:root first, this worked exactly once: the entrypoint runs as
+# root, chowns the directory, then drops to uid 70. Every later replay chowned it
+# back, and because the running container kept its file descriptors open, nothing
+# failed until the next connection tried to open global/pg_filenode.map. The
+# health check (`pg_isready`) reports a listening port, so the container reads
+# "healthy" while FreshRSS answers HTTP 500.
+#
+# The general rule: when a container drops privileges, Ansible has to create the
+# directory as the account that will own it, or the two fight on every replay.
+- name: Create the PostgreSQL data directory
+  ansible.builtin.file:
+    path: "{{ freshrss_dir }}/postgres"
+    state: directory
+    owner: "{{ freshrss_postgres_uid }}"
+    group: "{{ freshrss_postgres_gid }}"
+    mode: "0700"
+
+- name: Deploy the FreshRSS credentials
+  ansible.builtin.template:
+    src: freshrss.env.j2
+    dest: "{{ freshrss_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart FreshRSS stack
+
+- name: Deploy the FreshRSS compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ freshrss_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart FreshRSS stack
+
+- name: Start the FreshRSS stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ freshrss_dir }}"
+    state: present
+
+# The account passwords are the one part of the install the entrypoint never
+# reconciles. `cli/create-user.php` runs against an empty data volume and then
+# reports "already done" forever, so a rotation of `admin_api_password` in
+# OpenBao changed the vault and nothing else: the bcrypt hash in
+# data/users/<user>/config.php kept whatever the very first start wrote.
+#
+# ⚠️ The symptom hides for months. The web interface authenticates against
+# Authentik, not these hashes, so it keeps working; only the Google Reader API
+# notices, and it answers a flat `Unauthorized!` that looks like a disabled API.
+#
+# `changed_when: false` is not laziness: bcrypt salts every call, so the task
+# cannot tell "rewrote the same password" from "rewrote a new one" without
+# reading the hash back and verifying it. Reporting `changed` on every replay
+# would be just as untrue, and noisier.
+- name: Reconcile the FreshRSS account passwords with OpenBao
+  community.docker.docker_container_exec:
+    container: freshrss
+    # argv, not command: a generated password is free to contain spaces and
+    # quotes, and `command` is shell-lexed before it reaches the container.
+    argv:
+      - ./cli/update-user.php
+      - "--user={{ freshrss_admin_user }}"
+      - "--password={{ freshrss_admin_password }}"
+      - "--api-password={{ freshrss_admin_api_password }}"
+  no_log: true
+  changed_when: false

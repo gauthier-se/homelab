@@ -1,0 +1,58 @@
+#!/bin/sh
+# {{ ansible_managed }}
+# Issue or renew OpenBao's own listener certificate from its own PKI.
+#
+# Two things make this safe to run unattended:
+#  - it only re-issues when the current cert is inside the renewal window, so a
+#    daily timer is cheap and idempotent;
+#  - it reloads with SIGHUP rather than restarting. A restart would SEAL the
+#    vault and require three unseal keys by hand, a certificate renewal must
+#    never take the secret store offline.
+set -e
+# Skip verification on this one call: the script is what *produces* the
+# certificate, so on a first run it necessarily meets the packaged self-signed
+# one, verifying would be a cycle with no exit. The request is the host asking
+# itself, over its own interface, so there is nothing on the wire to intercept.
+export BAO_ADDR="https://{{ openbao_api_ip }}:8200"
+export BAO_SKIP_VERIFY=true
+export BAO_TOKEN="$(cat {{ openbao_tls_token_file }})"
+CERT={{ openbao_tls_cert }}
+KEY={{ openbao_tls_key }}
+RENEW_BEFORE_DAYS={{ openbao_tls_renew_before_days }}
+
+if [ -f "$CERT" ]; then
+  DEADLINE=$(( $(date +%s) + RENEW_BEFORE_DAYS * 86400 ))
+  if openssl x509 -in "$CERT" -noout -checkend $(( RENEW_BEFORE_DAYS * 86400 )) >/dev/null 2>&1; then
+    echo "certificate still valid past the renewal window; nothing to do"
+    exit 0
+  fi
+fi
+
+echo "issuing a new certificate from pki_int"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+bao write -format=json pki_int/issue/homelab \
+  common_name="openbao.{{ homelab_domain }}" \
+  alt_names="openbao.{{ homelab_domain }}" \
+  ip_sans="{{ openbao_api_ip }}" \
+  ttl={{ openbao_tls_ttl }} > "$TMP/out.json"
+
+python3 - "$TMP/out.json" "$TMP/tls.crt" "$TMP/tls.key" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))["data"]
+# ca_chain already starts at the issuing intermediate, the leaf is a separate
+# field. Serve the whole thing: a client that trusts only the root cannot build
+# a path without the intermediate, and fails with "unable to get local issuer".
+open(sys.argv[2], "w").write("\n".join([d["certificate"]] + d["ca_chain"]) + "\n")
+open(sys.argv[3], "w").write(d["private_key"] + "\n")
+PY
+
+install -o openbao -g openbao -m 0640 "$TMP/tls.crt" "$CERT"
+install -o openbao -g openbao -m 0600 "$TMP/tls.key" "$KEY"
+
+if systemctl is-active --quiet openbao; then
+  systemctl reload openbao || kill -HUP "$(systemctl show -p MainPID --value openbao)"
+  echo "reloaded (vault stays unsealed)"
+fi
+openssl x509 -in "$CERT" -noout -subject -dates

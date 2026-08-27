@@ -1,0 +1,38 @@
+---
+- name: Install Samba
+  ansible.builtin.apt:
+    name: samba
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# The share's unix owner. Its Samba password is not set here: it comes back
+# with the restored passdb.tdb, so saved credentials keep working.
+- name: Ensure the share owner exists
+  ansible.builtin.user:
+    name: "{{ samba_user }}"
+    uid: "{{ samba_uid }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Deploy the Samba configuration
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: testparm -s %s
+  notify: Restart samba
+
+# nmbd answers NetBIOS name lookups. It ran on the old server, and without it
+# clients that browse the share by name rather than by IP stop finding it.
+- name: Ensure Samba is enabled and running
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - smbd
+    - nmbd

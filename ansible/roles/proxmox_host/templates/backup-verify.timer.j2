@@ -1,0 +1,13 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Weekly backup integrity check
+
+[Timer]
+# A full pass is about 7 minutes over 311 GB from the USB disk, so weekly is
+# cheap. Integrity is not restorability: the quarterly restore drill stays.
+OnCalendar={{ proxmox_host_verify_oncalendar }}
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

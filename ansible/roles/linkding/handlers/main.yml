@@ -1,0 +1,7 @@
+---
+# Recreate rather than reload: every credential and every OIDC endpoint is an
+# environment variable, and Django reads its settings once at process start.
+- name: Restart Linkding
+  community.docker.docker_compose_v2:
+    project_src: "{{ linkding_dir }}"
+    state: restarted

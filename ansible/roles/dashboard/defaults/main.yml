@@ -1,0 +1,122 @@
+---
+# Pinned on purpose: a dashboard on `:latest` breaks exactly when you need it.
+# Homepage v2's built-in auth is inert here (HOMEPAGE_AUTH_ENABLED unset); it
+# stays behind Authentik forward-auth.
+dashboard_homepage_image: ghcr.io/gethomepage/homepage:v2.0.0
+dashboard_uptimekuma_image: louislam/uptime-kuma:2.4.0
+
+dashboard_dir: /opt/dashboard
+dashboard_homepage_port: 3000
+dashboard_uptimekuma_port: 3001
+
+# Baked into the image: the embedded MariaDB drops to uid 1000, so its data
+# directory must be traversable by that uid or the database cannot initialise.
+dashboard_uptimekuma_uid: 1000
+dashboard_uptimekuma_gid: 1000
+
+# Homepage rejects any Host header not listed here (DNS-rebinding defence).
+# Traefik passes the original Host through, so list the proxied name.
+dashboard_homepage_host: "dash.{{ homelab_domain }}"
+dashboard_uptimekuma_host: "status.{{ homelab_domain }}"
+
+# Slug of the Uptime Kuma status page Homepage summarises. Uptime Kuma stores
+# its config in its own database, the page is created by scripts/, not here.
+dashboard_status_page_slug: homelab
+
+# Media disk, bind-mounted read-only by OpenTofu, so the resources widget can
+# report how full it is.
+dashboard_media_root: /mnt/hdd
+
+# Weather for the header (Open-Meteo, no API key). Placeholders, real values
+# in group_vars/all/99-local.yml.
+dashboard_latitude: "48.8566"
+dashboard_longitude: "2.3522"
+
+# Direct backend addresses, deliberately not the proxied names: a probe through
+# SSO would only ever report that the login page is up.
+dashboard_backends:
+  jellyfin: "http://10.10.20.10:8096"
+  seerr: "http://10.10.20.11:5055"
+  audiobookshelf: "http://10.10.20.11:13378"
+  radarr: "http://10.10.20.11:7878"
+  sonarr: "http://10.10.20.11:8989"
+  lidarr: "http://10.10.20.11:8686"
+  bazarr: "http://10.10.20.11:6767"
+  prowlarr: "http://10.10.20.11:9696"
+  qbittorrent: "http://10.10.20.12:8080"
+  # The only backend on IoT. Probing it needs the same one-address-one-port
+  # Servers → IoT rule the proxy uses; nothing else on that VLAN is reachable.
+  homeassistant: "http://10.10.40.15:80"
+  freshrss: "http://10.10.20.15:8080"
+  # /_up rather than /: CouchDB is configured with require_valid_user, so the
+  # root path answers 401 to an unauthenticated probe. `_up` is the one endpoint
+  # exempted from that, and it reports the node state rather than merely that a
+  # port is open.
+  couchdb: "http://10.10.20.16:5984/_up"
+  # /health rather than /: the root path is behind the session middleware and
+  # answers a redirect to the login page, which proves the web server is up and
+  # nothing else. `/health` is the endpoint the image's own healthcheck uses.
+  linkding: "http://10.10.20.18:9090/health"
+  authentik: "http://10.10.25.11:9000"
+  # /v1/sys/health rather than /: a *sealed* vault still serves its web UI
+  # (that is where the unseal shares are typed), so the root path answers 307
+  # in both states and the dot would stay green through this lab's single
+  # most frequent failure. The health endpoint answers 503 when sealed.
+  # Same reasoning as CouchDB above; Uptime Kuma already probes it this way.
+  openbao: "https://10.10.25.10:8200/v1/sys/health"
+  # No entry for the internal proxy: it has no card. See services.yaml.j2.
+  proxmox: "https://10.10.10.3:8006"
+  unifi: "https://10.10.10.10:8443"
+  # The router's Management address, not this guest's gateway: one destination
+  # segment to allow instead of two.
+  opnsense: "https://10.10.10.1"
+  uptimekuma: "http://uptime-kuma:3001"
+
+# All widget credentials come from one OpenBao secret. A missing one is not an
+# error: each widget is emitted only when its key is present, so the dashboard
+# starts as plain links and grows widgets as the vault fills.
+dashboard_vault_path: dashboard
+
+# Filled from the vault by the first task. Declared here so templates never
+# render against an undefined name.
+dashboard_secrets: {}
+
+# The *arr applications mint their own API keys on first start and write them
+# into their own config files, on a host this inventory already manages. Six of
+# the credentials above are therefore derivable at play time, and a derivable
+# value stored in the vault as well is a value that drifts: rebuild a container,
+# it mints a new key, and the vault keeps serving the old one until somebody
+# notices a widget went blank. Reading them here also removes the manual step
+# that used to sit between the media play and this one.
+#
+# The vault copy stays as the fallback: if the host is unreachable, whatever it
+# holds is still better than nothing.
+dashboard_arr_discover: true
+dashboard_arr_host: arr
+dashboard_arr_root: /opt/arr-stack
+
+# Key name -> file under dashboard_arr_root, and the pattern that pulls the key
+# out of it. Radarr and friends share the Servarr config.xml; Bazarr went its
+# own way with YAML. One group, and only one: the first capture wins.
+dashboard_arr_sources:
+  radarr_key:
+    file: radarr/config/config.xml
+    regex: '<ApiKey>([^<]+)</ApiKey>'
+  sonarr_key:
+    file: sonarr/config/config.xml
+    regex: '<ApiKey>([^<]+)</ApiKey>'
+  lidarr_key:
+    file: lidarr/config/config.xml
+    regex: '<ApiKey>([^<]+)</ApiKey>'
+  prowlarr_key:
+    file: prowlarr/config/config.xml
+    regex: '<ApiKey>([^<]+)</ApiKey>'
+  bazarr_key:
+    file: bazarr/config/config/config.yaml
+    regex: '^\s*apikey:\s*["'']?([A-Za-z0-9]+)'
+
+# Seerr is the exception and gets read as JSON, never by regex: `apiKey` is not
+# a unique name in that file, notification agents carry one too, and a pattern
+# that matches the wrong one would hand the dashboard a working-looking key for
+# the wrong service.
+dashboard_seerr_settings: seerr/config/settings.json

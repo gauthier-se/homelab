@@ -1,0 +1,43 @@
+# {{ ansible_managed }}
+services:
+  gluetun:
+    image: {{ media_qbittorrent_gluetun_image }}
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    restart: unless-stopped
+    environment:
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER}
+      VPN_TYPE: ${VPN_TYPE}
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES}
+      SERVER_COUNTRIES: ${SERVER_COUNTRIES}
+      # Without an inbound port qBittorrent shows up as "firewalled": peers can
+      # never open a connection to us, and on a private tracker there is no DHT
+      # or PeX to fall back on. PORT_FORWARD_ONLY keeps server selection to the
+      # ProtonVPN servers that actually support NAT-PMP.
+      VPN_PORT_FORWARDING: "on"
+      PORT_FORWARD_ONLY: "on"
+      VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh /gluetun-scripts/qbt-set-port.sh {{ '{{PORT}}' }}
+    volumes:
+      - ./scripts:/gluetun-scripts:ro
+    ports:
+      - "8080:8080"
+
+  qbittorrent:
+    image: {{ media_qbittorrent_image }}
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+    environment:
+      PUID: "{{ media_qbittorrent_puid }}"
+      PGID: "{{ media_qbittorrent_pgid }}"
+      TZ: "{{ homelab_timezone }}"
+      WEBUI_PORT: "8080"
+    volumes:
+      - ./qbittorrent/config:/config
+      - {{ media_qbittorrent_media_root }}:{{ media_qbittorrent_media_root }}
+    depends_on:
+      - gluetun

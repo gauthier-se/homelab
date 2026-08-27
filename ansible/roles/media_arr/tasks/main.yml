@@ -1,0 +1,22 @@
+---
+- name: Create the *arr project directory
+  ansible.builtin.file:
+    path: /opt/arr-stack
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the *arr compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: /opt/arr-stack/compose.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart arr stack
+
+- name: Start the *arr stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/arr-stack
+    state: present

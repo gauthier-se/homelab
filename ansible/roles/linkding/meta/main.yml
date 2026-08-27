@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  role_name: linkding
+  author: homelab
+  description: Linkding bookmark manager via Docker Compose, web interface behind Authentik OIDC
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+dependencies: []

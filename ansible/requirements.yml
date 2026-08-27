@@ -1,0 +1,12 @@
+---
+collections:
+  - name: community.general
+    version: ">=9.0.0"
+  - name: community.docker
+    version: ">=3.10.0"
+  - name: ansible.posix
+    version: ">=1.5.0"
+  # Reads role secrets out of OpenBao at play time (needs the hvac python
+  # package, provided by the devshell in flake.nix).
+  - name: community.hashi_vault
+    version: ">=6.0.0"

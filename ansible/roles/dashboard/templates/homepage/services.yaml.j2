@@ -1,0 +1,263 @@
+---
+# {{ ansible_managed }}
+#
+# Two addresses per service, and they are not the same one:
+#   href       : the proxied name, what a browser should open (TLS, SSO)
+#   siteMonitor, the backend directly, what the dashboard should probe
+# Probing through the proxy would answer "the login page is up", which is a
+# different question from "the service is up".
+#
+# Widgets appear only when their credential exists in OpenBao. A service whose
+# key is missing degrades to a link with a reachability dot rather than to an
+# error card.
+{#
+  Emits a Homepage variable reference, the literal `{{HOMEPAGE_VAR_X}}` that
+  Homepage substitutes from the environment at load time, not something Ansible
+  should resolve here. Quoted, because an unquoted `{{` starts a flow mapping
+  and the file would stop being valid YAML for every other tool that reads it.
+#}
+{% macro var(name) -%}
+{{ '"{{HOMEPAGE_VAR_' ~ name | upper ~ '}}"' }}
+{%- endmacro %}
+{% set s = dashboard_secrets %}
+{% set b = dashboard_backends %}
+
+- Platform:
+    - Proxmox:
+        icon: proxmox.png
+        href: {{ b.proxmox }}
+        description: Hypervisor, node 1
+        siteMonitor: {{ b.proxmox }}
+{% if 'proxmox_token_id' in s and 'proxmox_token_secret' in s %}
+        widget:
+          type: proxmox
+          url: {{ b.proxmox }}
+          username: {{ var('proxmox_token_id') }}
+          password: {{ var('proxmox_token_secret') }}
+          node: pve01
+{% endif %}
+
+    - OPNsense:
+        icon: opnsense.png
+        href: {{ b.opnsense }}
+        description: Router, firewall, DNS, DHCP
+        siteMonitor: {{ b.opnsense }}
+{% if 'opnsense_key' in s and 'opnsense_secret' in s %}
+        widget:
+          type: opnsense
+          url: {{ b.opnsense }}
+          username: {{ var('opnsense_key') }}
+          password: {{ var('opnsense_secret') }}
+{% endif %}
+
+    - UniFi:
+        icon: unifi.png
+        href: {{ b.unifi }}
+        # No Traefik route on purpose: the controller lives on Management, and
+        # the firewall denies Servers -> Management for everything except the
+        # read-only pulls this dashboard makes.
+        description: WiFi controller, reachable from Trusted or the tailnet
+        siteMonitor: {{ b.unifi }}
+
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://{{ dashboard_uptimekuma_host }}
+        description: Availability monitoring and history
+        siteMonitor: {{ b.uptimekuma }}
+        widget:
+          type: uptimekuma
+          url: {{ b.uptimekuma }}
+          slug: {{ dashboard_status_page_slug }}
+
+# The internal proxy has no card here. It has no UI of its own to link to:
+# exposing its API would mean an unauthenticated port on the Servers VLAN, or a
+# route the widget could not authenticate through, for a count of routers, and
+# every other card on this page reaching its proxied name is already a live
+# test of it. Uptime Kuma watches it directly so the outage has a timestamp.
+- Core services:
+    - Authentik:
+        icon: authentik.png
+        href: https://auth.{{ homelab_domain }}
+        description: Single sign-on in front of the admin apps
+        siteMonitor: {{ b.authentik }}
+{% if 'authentik_token' in s %}
+        widget:
+          type: authentik
+          url: {{ b.authentik }}
+          key: {{ var('authentik_token') }}
+          # Authentik >= 2025.8 changed the endpoints the widget reads.
+          version: 2
+{% endif %}
+
+    - OpenBao:
+        icon: openbao.png
+        href: https://bao.{{ homelab_domain }}
+        # Worth a card even without a widget: this is the one service whose
+        # being down stops every play that reads a secret, and it reseals on
+        # every restart. The dot going red here explains the rest of the page.
+        description: Secrets and private PKI, reseals on restart
+        siteMonitor: {{ b.openbao }}
+
+- Home:
+    - Home Assistant:
+        icon: home-assistant.png
+        href: https://ha.{{ homelab_domain }}
+        # The only card whose backend is on IoT, and the only one that fronts
+        # hardware rather than software: lights, remotes and the Thread mesh.
+        description: Home automation - Matter/Thread through the Apple TV
+        siteMonitor: {{ b.homeassistant }}
+{% if 'homeassistant_token' in s %}
+        widget:
+          type: homeassistant
+          url: {{ b.homeassistant }}
+          key: {{ var('homeassistant_token') }}
+{% endif %}
+
+- Perso:
+    - FreshRSS:
+        icon: freshrss.png
+        href: https://rss.{{ homelab_domain }}
+        # No widget: Homepage's freshrss widget authenticates with the account
+        # password, and this instance signs in through Authentik, so there is no
+        # such password to hand it.
+        description: RSS reader - SSO on the web, Google Reader API left open
+        siteMonitor: {{ b.freshrss }}
+
+    - Linkding:
+        icon: linkding.png
+        href: https://links.{{ homelab_domain }}
+        # No widget, and unlike FreshRSS not for want of a credential: Homepage
+        # ships widgets for Karakeep and Linkwarden but has none for Linkding.
+        # A count of bookmarks is not worth a customapi block and a second API
+        # token to keep in the vault.
+        # No colon in an unquoted description. A `:` followed by a space makes
+        # YAML read the value as a nested mapping, Homepage then rejects the
+        # *whole* file with a YAMLException, and one added card takes the entire
+        # page down.
+        description: Bookmarks and links - SSO on the web, API left open
+        siteMonitor: {{ b.linkding }}
+
+    - Obsidian:
+        icon: obsidian.png
+        # No href worth opening: CouchDB's only interface is Fauxton, an admin
+        # console for a database whose one client is the Obsidian plugin. The
+        # card exists to answer "is sync alive", which is what breaks.
+        href: https://obsidian.{{ homelab_domain }}/_utils/
+        description: CouchDB - obsidian-livesync backend
+        siteMonitor: {{ b.couchdb }}
+
+- Media:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: https://jellyfin.{{ homelab_domain }}
+        description: Films and series
+        siteMonitor: {{ b.jellyfin }}
+{% if 'jellyfin_key' in s %}
+        widget:
+          type: jellyfin
+          url: {{ b.jellyfin }}
+          key: {{ var('jellyfin_key') }}
+          enableBlocks: true
+          enableNowPlaying: true
+{% endif %}
+
+    - Requests:
+        icon: seerr.png
+        href: https://requests.{{ homelab_domain }}
+        description: Seerr, request front end
+        siteMonitor: {{ b.seerr }}
+{% if 'seerr_key' in s %}
+        widget:
+          type: seerr
+          url: {{ b.seerr }}
+          key: {{ var('seerr_key') }}
+{% endif %}
+
+    - Audiobookshelf:
+        icon: audiobookshelf.png
+        href: https://books.{{ homelab_domain }}
+        description: Audiobooks and podcasts
+        siteMonitor: {{ b.audiobookshelf }}
+{% if 'audiobookshelf_token' in s %}
+        widget:
+          type: audiobookshelf
+          url: {{ b.audiobookshelf }}
+          key: {{ var('audiobookshelf_token') }}
+{% endif %}
+
+- Media automation:
+    - Radarr:
+        icon: radarr.png
+        href: https://radarr.{{ homelab_domain }}
+        description: Films
+        siteMonitor: {{ b.radarr }}
+{% if 'radarr_key' in s %}
+        widget:
+          type: radarr
+          url: {{ b.radarr }}
+          key: {{ var('radarr_key') }}
+{% endif %}
+
+    - Sonarr:
+        icon: sonarr.png
+        href: https://sonarr.{{ homelab_domain }}
+        description: Series
+        siteMonitor: {{ b.sonarr }}
+{% if 'sonarr_key' in s %}
+        widget:
+          type: sonarr
+          url: {{ b.sonarr }}
+          key: {{ var('sonarr_key') }}
+{% endif %}
+
+    - Lidarr:
+        icon: lidarr.png
+        href: https://lidarr.{{ homelab_domain }}
+        description: Music
+        siteMonitor: {{ b.lidarr }}
+{% if 'lidarr_key' in s %}
+        widget:
+          type: lidarr
+          url: {{ b.lidarr }}
+          key: {{ var('lidarr_key') }}
+{% endif %}
+
+    - Bazarr:
+        icon: bazarr.png
+        href: https://bazarr.{{ homelab_domain }}
+        description: Subtitles
+        siteMonitor: {{ b.bazarr }}
+{% if 'bazarr_key' in s %}
+        widget:
+          type: bazarr
+          url: {{ b.bazarr }}
+          key: {{ var('bazarr_key') }}
+{% endif %}
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: https://prowlarr.{{ homelab_domain }}
+        description: Indexers, pushed to the four above
+        siteMonitor: {{ b.prowlarr }}
+{% if 'prowlarr_key' in s %}
+        widget:
+          type: prowlarr
+          url: {{ b.prowlarr }}
+          key: {{ var('prowlarr_key') }}
+{% endif %}
+
+- Downloads:
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: https://torrents.{{ homelab_domain }}
+        # Its whole network stack is gluetun's: if the tunnel drops, the
+        # container has no route out, and this card is how you notice.
+        description: Behind the VPN kill-switch (gluetun)
+        siteMonitor: {{ b.qbittorrent }}
+{% if 'qbittorrent_username' in s and 'qbittorrent_password' in s %}
+        widget:
+          type: qbittorrent
+          url: {{ b.qbittorrent }}
+          username: {{ var('qbittorrent_username') }}
+          password: {{ var('qbittorrent_password') }}
+{% endif %}

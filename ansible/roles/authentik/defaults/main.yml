@@ -1,0 +1,48 @@
+---
+# renovate: datasource=docker depName=ghcr.io/goauthentik/server
+authentik_version: "2026.5.6"
+
+# Secrets are generated straight into OpenBao and read back at run time, they
+# have no plaintext home anywhere. Needs openbao_addr + openbao_token.
+authentik_vault_path: authentik
+authentik_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            authentik_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+authentik_secret_key: "{{ authentik_vault.secret_key }}"
+authentik_postgres_password: "{{ authentik_vault.postgres_password }}"
+# No postgres_user / postgres_db here on purpose: the compose file hardcodes
+# `authentik` four times, so reading those two out of the vault declared an
+# intention nothing carried out, changing them there had no effect and nothing
+# said so. A database name is not a secret, and they will never vary.
+# The matching keys still sit under `homelab/authentik`;
+
+# --- FreshRSS OIDC provider (roles/freshrss) --------------------------------
+# The client secret has to exist on both sides of the exchange, so this role
+# reads it out of the *application's* vault bundle rather than keeping a second
+# copy of the same string under `homelab/authentik`.
+authentik_freshrss_client_id: freshrss
+authentik_freshrss_vault_path: freshrss
+authentik_freshrss_client_secret: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            authentik_freshrss_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret.oidc_client_secret }}
+
+# --- Linkding OIDC provider (roles/linkding) --------------------------------
+# Same arrangement as FreshRSS above: one copy of the client secret, kept under
+# the application's own vault path and read from here.
+authentik_linkding_client_id: linkding
+authentik_linkding_vault_path: linkding
+authentik_linkding_client_secret: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            authentik_linkding_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret.oidc_client_secret }}

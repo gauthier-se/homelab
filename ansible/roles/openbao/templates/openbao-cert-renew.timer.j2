@@ -1,0 +1,14 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Daily check on the OpenBao listener certificate
+
+[Timer]
+OnCalendar=daily
+# The vault is sealed right after a boot, so a renewal fired at that moment
+# would fail; give the operator time to unseal first.
+OnBootSec=30min
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

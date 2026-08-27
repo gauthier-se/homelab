@@ -1,0 +1,7 @@
+---
+# MongoDB 7.0's signing key is self-signed with SHA-1, which Debian 13's apt
+# (sequoia-backed) rejects outright. The recipe below works only because
+# that container was Debian 12. 8.0 ships a modern key and is supported by
+# UniFi Network 9+.
+unifi_controller_mongodb_version: "8.0"
+unifi_controller_temurin_package: temurin-25-jre

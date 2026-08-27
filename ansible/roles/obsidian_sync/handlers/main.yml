@@ -1,0 +1,7 @@
+---
+# Recreate rather than reload: CouchDB reads local.d only at startup, and the
+# administrator credentials are environment variables.
+- name: Restart CouchDB
+  community.docker.docker_compose_v2:
+    project_src: "{{ obsidian_sync_dir }}"
+    state: restarted

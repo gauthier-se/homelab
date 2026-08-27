@@ -1,0 +1,88 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# ⚠️ `pull-requests: read` is required on `pull_request` events: gitleaks-action
+# lists the PR commits and dorny/paths-filter lists its files, both through the
+# API. Without it both return "Resource not accessible by integration" (403),
+# the jobs depending on `changes` are skipped, and CI goes green having analysed
+# nothing.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      opentofu: ${{ steps.filter.outputs.opentofu }}
+      ansible: ${{ steps.filter.outputs.ansible }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            opentofu:
+              - 'opentofu/**'
+            ansible:
+              - 'ansible/**'
+
+  opentofu:
+    name: OpenTofu fmt + validate
+    needs: changes
+    if: needs.changes.outputs.opentofu == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: opentofu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+      - run: tofu fmt -check -recursive -diff
+      - run: tofu init -backend=false
+      - run: tofu validate
+
+  ansible-lint:
+    name: Ansible lint
+    needs: changes
+    if: needs.changes.outputs.ansible == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # --include-deps exposes the dependencies' executables, ansible-galaxy
+      # among them, which ansible-core provides.
+      - run: pipx install --include-deps ansible-lint
+      # ansible-lint ships ansible-core only, with no collections, while the
+      # devshell provides the full `ansible` distribution that contains them.
+      # Without this step the lint passes locally and fails here on
+      # syntax-check[unknown-module].
+      #
+      # ⚠️ `-p collections` explicitly, and `--force`: the runner image already
+      # carries these collections, so galaxy otherwise answers "Nothing to do"
+      # and writes nothing. ansible.cfg sets `collections_path = collections`,
+      # which *replaces* the default paths, so ansible-lint would look only at
+      # that directory and find it empty.
+      - run: ansible-galaxy collection install -r requirements.yml -p collections --force
+        working-directory: ansible
+      - run: ansible-lint
+        working-directory: ansible

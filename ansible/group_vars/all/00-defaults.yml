@@ -1,0 +1,45 @@
+---
+# Shared facts for every host. No secrets here: they are read from OpenBao at
+# run time. Identifiers are placeholders; real values go in the untracked
+# `99-local.yml` beside this file, which loads later and wins.
+
+homelab_domain: home.example.com
+homelab_timezone: Europe/Paris
+
+# Internal Traefik entry point.
+traefik_internal_ip: 10.10.20.2
+
+# ACME / Let's Encrypt wildcard via Cloudflare DNS-01.
+acme_email: admin@example.com
+acme_wildcard: "*.{{ homelab_domain }}"
+
+# Global rather than a role default because two hosts have to agree on it: the
+# reader itself uses it as its base URL, and Authentik registers
+# https://<this>/i/oidc/ as the only redirect URI it will hand a code to.
+freshrss_host: "rss.{{ homelab_domain }}"
+
+# Same reason as the line above, and the same two consumers: Linkding builds its
+# CSRF trusted origin from it, and Authentik registers
+# https://<this>/oidc/callback/ as the only redirect URI it will hand a code to.
+linkding_host: "links.{{ homelab_domain }}"
+
+# OpenBao endpoint used by lookups once the secret store is up.
+openbao_addr: https://10.10.25.10:8200
+
+# Token for the OpenBao lookups (policy `ansible-read`, read-only on homelab/*).
+# The real value lives outside the repo, export OPENBAO_TOKEN before running,
+# or point this at your own secret store.
+openbao_token: "{{ lookup('env', 'OPENBAO_TOKEN') }}"
+
+# Token letting OpenBao issue its own listener certificate (policy
+# `openbao-tls`, write on one PKI path only). Real value stays outside the repo.
+openbao_pki_token: "{{ lookup('env', 'OPENBAO_PKI_TOKEN') }}"
+
+# Root CA that signs internally-issued certificates. Point this at your copy so
+# lookups can verify the vault instead of skipping the check.
+openbao_ca_cert: ""
+
+# Public hostnames served by the DMZ proxy (placeholders, real names in
+# 99-local.yml).
+public_jellyfin_host: tv.example.com
+public_requests_host: requests.example.com

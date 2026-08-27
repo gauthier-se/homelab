@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  role_name: media_jellyfin
+  author: homelab
+  description: Install Jellyfin from the official repo with iGPU transcoding access
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+dependencies: []

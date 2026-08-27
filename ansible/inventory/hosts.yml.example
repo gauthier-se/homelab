@@ -1,0 +1,62 @@
+---
+# Copy to hosts.yml and adjust. Addressing follows docs/architecture.md
+# and mirrors the OpenTofu guest catalogue (opentofu/locals.tf).
+# Groups map to the roles applied in site.yml.
+all:
+  vars:
+    ansible_user: root
+  children:
+    proxmox:
+      hosts:
+        pve01:
+          ansible_host: 10.10.10.3
+    unifi:
+      hosts:
+        unifi:
+          ansible_host: 10.10.10.10
+    core:
+      # Core is the locked-down segment: no VLAN reaches it except Management,
+      # so hop through the Proxmox node rather than relying on a route to it.
+      vars:
+        ansible_ssh_common_args: -o ProxyJump=root@10.10.10.3
+      hosts:
+        openbao:
+          ansible_host: 10.10.25.10
+        authentik:
+          ansible_host: 10.10.25.11
+    traefik:
+      hosts:
+        traefik:
+          ansible_host: 10.10.20.2
+    dmz:
+      # The DMZ subnet is deliberately not advertised to the tailnet: the one
+      # segment reachable from the internet should not also be one hop from
+      # every device carrying a tailnet key. Administer it through the node,
+      # which sits on Management, the only segment the matrix lets in.
+      vars:
+        ansible_ssh_common_args: -o ProxyJump=root@10.10.10.3
+      hosts:
+        dmz-traefik:
+          ansible_host: 10.10.60.2
+    dashboard:
+      hosts:
+        dashboard:
+          ansible_host: 10.10.20.14
+    personal:
+      hosts:
+        freshrss:
+          ansible_host: 10.10.20.15
+        obsidian-sync:
+          ansible_host: 10.10.20.16
+        linkding:
+          ansible_host: 10.10.20.18
+    media:
+      hosts:
+        jellyfin:
+          ansible_host: 10.10.20.10
+        arr:
+          ansible_host: 10.10.20.11
+        qbittorrent:
+          ansible_host: 10.10.20.12
+        samba:
+          ansible_host: 10.10.20.13

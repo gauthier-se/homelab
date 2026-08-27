@@ -1,0 +1,7 @@
+---
+# Recreate rather than reload: every credential and every OIDC setting is an
+# environment variable, and those are read once at container creation.
+- name: Restart FreshRSS stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ freshrss_dir }}"
+    state: restarted

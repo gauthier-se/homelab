@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Traefik reverse proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=traefik
+Group=traefik
+# Traefik resolves its plugin cache to ./plugins-storage, relative to the
+# working directory. With none set that is /, which the traefik user cannot
+# write, and the failure is near-silent: the service starts, reports active,
+# and logs one line saying plugins are disabled. Any plugin-based middleware
+# then simply does not exist.
+WorkingDirectory={{ traefik_state_dir }}
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+EnvironmentFile=/etc/traefik/traefik.env
+ExecStart=/usr/local/bin/traefik --configfile=/etc/traefik/traefik.yaml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,156 @@
+---
+# Operational tooling on the Proxmox node. Deliberately narrow: this role does
+# not touch networking, storage or the PVE packages, because the node is the one
+# machine in the lab whose rebuild is manual.
+
+- name: Install the operational scripts that used to rot untracked in /root
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/root/{{ item }}"
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - backup-verify.sh
+    - preupgrade-backup.sh
+
+- name: Offsite backup
+  when: proxmox_host_offsite_enabled | bool
+  block:
+    # Cloudflare shows two different strings both called an endpoint: the token
+    # creation page gives the bare host, the bucket's settings page gives the
+    # host WITH the bucket path appended. Composing the repository from the
+    # second yields s3:.../bucket/bucket, which fails at upload time, at 5am,
+    # on a timer, rather than here. Fail at deploy instead.
+    - name: Check the R2 endpoint is a bare host, not the bucket URL
+      ansible.builtin.assert:
+        that:
+          - proxmox_host_offsite_vault.r2_endpoint is match('^https://[^/]+$')
+        fail_msg: >-
+          r2_endpoint must be the bare host, e.g.
+          https://<account-id>.r2.cloudflarestorage.com, got
+          '{{ proxmox_host_offsite_vault.r2_endpoint }}'. Drop the trailing
+          /{{ proxmox_host_offsite_vault.r2_bucket }} if Cloudflare showed you the
+          bucket URL, and rewrite the secret with scripts/vault-put.py.
+        quiet: true
+
+    - name: Install restic
+      ansible.builtin.apt:
+        name: restic
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the restic cache directory
+      ansible.builtin.file:
+        path: "{{ proxmox_host_offsite_cache_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create the restic configuration directory
+      ansible.builtin.file:
+        path: "{{ proxmox_host_offsite_env_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Write the repository credentials
+      ansible.builtin.template:
+        src: offsite.env.j2
+        dest: "{{ proxmox_host_offsite_env_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Write the exclusion list
+      ansible.builtin.template:
+        src: offsite-excludes.j2
+        dest: "{{ proxmox_host_offsite_exclude_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Install the backup script
+      ansible.builtin.template:
+        src: offsite-backup.sh.j2
+        dest: /usr/local/bin/offsite-backup.sh
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the systemd unit and timer
+      ansible.builtin.template:
+        src: "offsite-backup.{{ item }}.j2"
+        dest: "/etc/systemd/system/offsite-backup.{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - service
+        - timer
+      notify: Restart offsite timer
+
+    # `restic init` on an existing repository is a no-op that exits non-zero, so
+    # check first rather than papering over the failure with ignore_errors, that
+    # would also swallow a genuinely unreachable bucket.
+    - name: Check whether the repository already exists
+      ansible.builtin.shell:
+        cmd: set -o pipefail && . {{ proxmox_host_offsite_env_file }} && restic cat config >/dev/null 2>&1
+        executable: /bin/bash
+      register: proxmox_host_restic_probe
+      changed_when: false
+      failed_when: false
+
+    - name: Initialise the repository
+      ansible.builtin.shell:
+        cmd: set -o pipefail && . {{ proxmox_host_offsite_env_file }} && restic init
+        executable: /bin/bash
+      when: proxmox_host_restic_probe.rc != 0
+      register: proxmox_host_restic_init
+      changed_when: proxmox_host_restic_init.rc == 0
+
+    - name: Enable the nightly timer
+      ansible.builtin.systemd:
+        name: offsite-backup.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+- name: Disk space alerting and scheduled backup verification
+  when: proxmox_host_disk_enabled | bool
+  block:
+    - name: Install the disk watch
+      ansible.builtin.template:
+        src: disk-alert.sh.j2
+        dest: /usr/local/bin/disk-alert.sh
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the disk watch and verification units
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - disk-alert.service
+        - disk-alert.timer
+        - backup-verify.service
+        - backup-verify.timer
+      notify: Reload systemd
+
+    - name: Enable the timers
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop:
+        - disk-alert.timer
+        - backup-verify.timer

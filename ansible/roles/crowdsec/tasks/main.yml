@@ -1,0 +1,128 @@
+---
+- name: Add the CrowdSec GPG key
+  ansible.builtin.get_url:
+    url: https://packagecloud.io/crowdsec/crowdsec/gpgkey
+    dest: /etc/apt/keyrings/crowdsec.asc
+    mode: "0644"
+
+# CrowdSec publishes no trixie suite yet; bookworm packages are what its own
+# installer selects on Debian 13 too.
+- name: Add the CrowdSec apt repository
+  ansible.builtin.deb822_repository:
+    name: crowdsec
+    types: deb
+    uris: https://packagecloud.io/crowdsec/crowdsec/debian
+    suites: bookworm
+    components: main
+    signed_by: /etc/apt/keyrings/crowdsec.asc
+    state: present
+
+- name: Install CrowdSec
+  ansible.builtin.apt:
+    name: crowdsec
+    state: present
+    update_cache: true
+
+- name: Point the acquisition at the Traefik access log
+  ansible.builtin.template:
+    src: acquis.yaml.j2
+    dest: /etc/crowdsec/acquis.d/traefik.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart crowdsec
+
+# Ask what is installed rather than installing and interpreting the output:
+# cscli prints "Nothing to install or remove." for a no-op, which is easy to
+# misread as a change and would restart the engine on every single run.
+- name: List the installed collections
+  ansible.builtin.command: cscli collections list -o json
+  register: crowdsec_installed
+  changed_when: false
+
+- name: Install the missing detection collections
+  ansible.builtin.command: "cscli collections install {{ item }}"
+  loop: >-
+    {{ crowdsec_collections
+       | difference(crowdsec_installed.stdout | from_json
+                    | json_query('collections[].name')) }}
+  changed_when: true
+  notify: Restart crowdsec
+
+# Only where `crowdsec_whitelist_cidrs` is set. Facing the internet the hub's
+# blanket RFC1918 exemption is correct and there is nothing to do; facing a LAN
+# it exempts every client that exists, which is why detection there had never
+# produced a single decision. Removing a hub parser and shipping a local one is
+# the supported way to narrow it: editing the hub file in place is reverted by
+# the next `cscli hub upgrade`.
+- name: Narrow the whitelist where the clients are the threat model
+  when: crowdsec_whitelist_cidrs is not none
+  block:
+    - name: List the installed parsers
+      ansible.builtin.command: cscli parsers list -o json
+      register: crowdsec_parsers
+      changed_when: false
+
+    - name: Remove the hub's blanket private-range whitelist
+      ansible.builtin.command: cscli parsers remove crowdsecurity/whitelists
+      when: >-
+        'crowdsecurity/whitelists' in (crowdsec_parsers.stdout | from_json
+                                       | json_query('parsers[].name'))
+      changed_when: true
+      notify: Restart crowdsec
+
+    - name: Install the narrow whitelist in its place
+      ansible.builtin.template:
+        src: whitelists.yaml.j2
+        dest: /etc/crowdsec/parsers/s02-enrich/homelab-whitelists.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart crowdsec
+
+- name: Ensure CrowdSec is enabled and running
+  ansible.builtin.systemd_service:
+    name: crowdsec
+    enabled: true
+    state: started
+
+# The key is written before the proxy role runs, so the identity that will read
+# it may not exist yet. Declaring it here keeps the secret at 0640 instead of
+# widening it to world-readable just to survive first boot.
+- name: Ensure the bouncer's reader group exists
+  ansible.builtin.group:
+    name: "{{ crowdsec_bouncer_key_group }}"
+    system: true
+    state: present
+
+# The bouncer's key exists only at creation time, CrowdSec never shows it
+# again. So the key file is the source of truth: if it is missing, the bouncer
+# is recreated rather than left registered with a secret nobody holds.
+- name: Look for an existing bouncer key
+  ansible.builtin.stat:
+    path: "{{ crowdsec_bouncer_key_file }}"
+  register: crowdsec_key_file
+
+- name: Re-register the bouncer when its key is missing
+  when: not crowdsec_key_file.stat.exists
+  block:
+    - name: Drop any stale registration
+      ansible.builtin.command: "cscli bouncers delete {{ crowdsec_bouncer_name }}"
+      register: crowdsec_delete
+      changed_when: crowdsec_delete.rc == 0
+      failed_when: false
+
+    - name: Register the Traefik bouncer
+      ansible.builtin.command: "cscli bouncers add {{ crowdsec_bouncer_name }} -o raw"
+      register: crowdsec_new_bouncer
+      changed_when: true
+      no_log: true
+
+    - name: Persist the bouncer key for the Traefik plugin
+      ansible.builtin.copy:
+        content: "{{ crowdsec_new_bouncer.stdout | trim }}\n"
+        dest: "{{ crowdsec_bouncer_key_file }}"
+        owner: root
+        group: "{{ crowdsec_bouncer_key_group }}"
+        mode: "0640"
+      no_log: true

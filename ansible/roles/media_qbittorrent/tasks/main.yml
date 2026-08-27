@@ -1,0 +1,48 @@
+---
+- name: Create the qBittorrent project directory
+  ansible.builtin.file:
+    path: /opt/qbit-vpn
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create the gluetun hook script directory
+  ansible.builtin.file:
+    path: /opt/qbit-vpn/scripts
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Deploy the port forwarding hook script
+  ansible.builtin.copy:
+    src: qbt-set-port.sh
+    dest: /opt/qbit-vpn/scripts/qbt-set-port.sh
+    owner: root
+    group: root
+    mode: "0750"
+  notify: Restart qbittorrent
+
+- name: Deploy the qBittorrent compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: /opt/qbit-vpn/compose.yaml
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart qbittorrent
+
+- name: Deploy the VPN environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /opt/qbit-vpn/.env
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart qbittorrent
+
+- name: Start the qBittorrent stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/qbit-vpn
+    state: present

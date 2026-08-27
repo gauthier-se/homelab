@@ -1,0 +1,72 @@
+# {{ ansible_managed }}
+# Linkding authenticates its web interface against Authentik directly, rather
+# than through the forward-auth middleware the admin apps use. Same conclusion
+# as FreshRSS, reached by a different route: here SSO is Django middleware on
+# the session, and the REST API under /api/ authenticates on an
+# `Authorization: Token` header that never reaches it. Forward-auth would sit in
+# front of both and break the browser extension, which is most of the point of
+# a bookmark manager.
+#
+# No secret in this file: it is mounted world-readable into the containers, so
+# the client secret comes from the worker's environment instead (`.env`, 0600).
+version: 1
+metadata:
+  name: linkding-oidc
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: linkding-oidc
+    identifiers:
+      name: linkding
+    attrs:
+      client_type: confidential
+      client_id: "{{ authentik_linkding_client_id }}"
+      client_secret: !Env AUTHENTIK_LINKDING_CLIENT_SECRET
+      # The model default is an empty list, which allows no flow at all: the
+      # provider comes up looking correct, the discovery document serves, and
+      # the first sign-in dies on `invalid_request` with the real reason only in
+      # the server log (`Invalid grant_type for provider`).
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      # RS256 via the JWKS endpoint. Without a signing key Authentik falls back
+      # to HS256 with the client secret, which mozilla-django-oidc accepts but
+      # which puts the signing material on both sides of the exchange.
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      # mozilla-django-oidc's callback, fixed by the `oidc/` include in
+      # linkding's urls.py. Strict matching: a redirect URI is where the
+      # authorization code is delivered, so it should not be a pattern.
+      #
+      # One form, not FreshRSS's two. That instance registers a `:443` variant
+      # because mod_auth_openidc rebuilds the callback from X-Forwarded-Host and
+      # may emit the explicit port; mozilla-django-oidc builds it from Django's
+      # absolute URI instead, and Traefik passes the Host header through
+      # unchanged, so what arrives is exactly this string.
+      redirect_uris:
+        - matching_mode: strict
+          url: "https://{{ linkding_host }}/oidc/callback/"
+      # `email` is the load-bearing one, and not for the reason it looks.
+      # mozilla-django-oidc matches an incoming identity to a local account by
+      # email address, not by username, and refuses the login outright if the
+      # scope is missing. `profile` carries preferred_username, which only names
+      # a newly created account. See roles/linkding/tasks/main.yml.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+
+  # The slug builds the JWKS URL linkding fetches its signing keys from,
+  # https://auth.<domain>/application/o/<slug>/jwks/, and only that one. Unlike
+  # the discovery document, authorize, token and userinfo are served once for
+  # the whole instance and scoped by client_id, which is why the role's four
+  # endpoints are not all built the same way.
+  - model: authentik_core.application
+    identifiers:
+      slug: "{{ authentik_linkding_client_id }}"
+    attrs:
+      name: Linkding
+      provider: !KeyOf linkding-oidc

@@ -1,0 +1,84 @@
+---
+# Everything that lives on the Proxmox node itself rather than in a guest.
+#
+# Before this role existed, two operational scripts sat untracked in /root/ and
+# both silently rotted: one verified a glob of archives retention had already
+# pruned, the other backed up a guest list frozen on the day it was written.
+# Both now derive their guest list from /etc/pve/jobs.cfg instead.
+
+# --- Offsite backup --------------------------------------------------------
+#
+# Small, encrypted, and somewhere else. The 18 TB library is out of scope as
+# re-downloadable, so what has to survive a fire fits in about 3 GB.
+proxmox_host_offsite_enabled: true
+
+# Where the read-only guest snapshots are mounted while restic reads them.
+# Stable across runs on purpose: restic keys deduplication off the path, so a
+# mount root that moved would re-upload everything.
+proxmox_host_offsite_mount: /mnt/offsite
+
+proxmox_host_offsite_env_file: /etc/restic/offsite.env
+
+# Persistent restic cache. Without one, every run re-downloads the repository
+# index from the object store: slower, and billed per request for bytes that
+# have not changed.
+proxmox_host_offsite_cache_dir: /var/cache/restic
+proxmox_host_offsite_exclude_file: /etc/restic/offsite-excludes
+
+# Nightly, after both vzdump jobs (02:30 snapshot, 03:30 suspend) have finished.
+proxmox_host_offsite_oncalendar: "05:00"
+proxmox_host_offsite_randomized_delay: 30m
+
+# Kept deliberately longer than the local disk (keep-daily=7,keep-weekly=4,
+# keep-monthly=3): the offsite copy is the one that answers "we noticed the
+# corruption three weeks late", and at this size the extra months are free.
+proxmox_host_offsite_keep_daily: 7
+proxmox_host_offsite_keep_weekly: 8
+proxmox_host_offsite_keep_monthly: 12
+
+# Secrets. Real values come from OpenBao at play time, never from the repo.
+proxmox_host_offsite_vault_path: offsite
+proxmox_host_offsite_vault: >-
+  {{ lookup('community.hashi_vault.vault_kv2_get',
+            proxmox_host_offsite_vault_path,
+            engine_mount_point='homelab',
+            url=openbao_addr,
+            token=openbao_token,
+            ca_cert=openbao_ca_cert).secret }}
+
+# The full S3 endpoint is stored rather than composed from an account ID, because
+# the hostname is not one shape: a bucket created under the EU *jurisdiction*
+# answers on <account>.eu.r2.cloudflarestorage.com, not
+# <account>.r2.cloudflarestorage.com. Composing it here would bake in an
+# assumption that is wrong half the time and fails at upload rather than at
+# deploy. Store the string Cloudflare hands back.
+proxmox_host_offsite_repository: >-
+  s3:{{ proxmox_host_offsite_vault.r2_endpoint }}/{{ proxmox_host_offsite_vault.r2_bucket }}
+
+# --- Disk space alerting ---------------------------------------------------
+#
+# 80% is the blocking threshold. This replaces a monthly `df` run by hand.
+proxmox_host_disk_enabled: true
+proxmox_host_disk_oncalendar: "08:00"
+
+# Percentages, for the filesystems small enough that a percentage tracks risk.
+proxmox_host_disk_fs_percent: 80
+proxmox_host_disk_guest_percent: 80
+
+# The thin pool, where 100% breaks every guest at the same instant. Same figure
+# for data and metadata: metadata exhausts on its own and wedges the pool even
+# with data space to spare.
+proxmox_host_disk_pool_percent: 80
+
+# Absolute floors in GB, for the two filesystems where a percentage lies. The
+# media disk sits at 94% and is healthy, 6% of 18 TB is a terabyte, so a
+# percentage there either cries nightly or fires far too late. The backup disk
+# needs roughly 28 GB per full vzdump cycle plus its retention.
+proxmox_host_disk_absolute_floors:
+  "/mnt/hdd": 500
+  "/mnt/backup1t": 100
+
+# --- Weekly backup integrity check ------------------------------------------
+#
+# A full pass is about 7 minutes over 311 GB, so weekly costs nothing.
+proxmox_host_verify_oncalendar: "Sun 06:00"

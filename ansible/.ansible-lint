@@ -1,0 +1,11 @@
+---
+# ⚠️ Collections installed from requirements.yml land in `collections/`
+# (ansible.cfg sets `collections_path = collections`, and the directory is
+# gitignored). That is third-party code: without this exclusion ansible-lint
+# walks it and reports thousands of violations that are not ours.
+#
+# Invisible locally, because the nix devshell provides the full `ansible`
+# distribution: the collections then live outside the tree and nothing lints
+# them. It only shows up in CI, where they are actually installed.
+exclude_paths:
+  - collections/

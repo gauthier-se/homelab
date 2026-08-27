@@ -1,0 +1,16 @@
+[Unit]
+# {{ ansible_managed }}
+Description=Nightly offsite backup
+
+[Timer]
+# After both vzdump jobs (02:30 snapshot, 03:30 suspend) have finished, so the
+# two do not fight over the disk. The randomised delay spreads the upload rather
+# than hitting the object store from every homelab on the hour.
+OnCalendar={{ proxmox_host_offsite_oncalendar }}
+RandomizedDelaySec={{ proxmox_host_offsite_randomized_delay }}
+# A node that was off at 05:00 still gets its backup when it comes back, instead
+# of silently skipping a day.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

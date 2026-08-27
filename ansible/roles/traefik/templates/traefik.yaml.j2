@@ -1,0 +1,82 @@
+# {{ ansible_managed }}
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+{% if traefik_trusted_proxies %}
+    # Behind Cloudflare's proxy the TCP peer is Cloudflare, not the visitor.
+    # Without this every request looks like it comes from the same handful of
+    # edge IPs, rate limiting would throttle the whole world as one client,
+    # and CrowdSec would eventually ban Cloudflare itself, locking everyone out.
+    forwardedHeaders:
+      trustedIPs:
+{% for cidr in traefik_trusted_proxies %}
+        - "{{ cidr }}"
+{% endfor %}
+{% endif %}
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: {{ acme_email }}
+      storage: /etc/traefik/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        # The propagation check cannot work on this network: the forced-DNS NAT
+        # rule rewrites every outbound port-53 query to the local resolver, so
+        # `resolvers:` below is silently ignored and lego ends up asking a
+        # resolver that serves split-horizon data. It waits out its timeout and
+        # fails. Trading the check for a fixed delay is the honest fix:
+        # Cloudflare publishes in seconds, and Let's Encrypt does the real
+        # verification anyway.
+        propagation:
+          disableChecks: true
+          delayBeforeChecks: 60s
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+api:
+  dashboard: true
+
+log:
+  level: INFO
+
+# Structured, because it is machine-read: CrowdSec parses this to decide who is
+# probing and who is streaming. It is also the only record of what reached the
+# house from outside, without it a public service is a black box.
+#
+# Unfiltered on purpose. Keeping only errors would be cheaper, but it blinds the
+# detection to anything that works: scraping, enumeration and credential
+# stuffing that lands on valid endpoints all return 200. Size is handled by
+# rotation instead.
+accessLog:
+  filePath: {{ traefik_access_log }}
+  format: json
+  bufferingSize: 100
+
+{% if traefik_crowdsec_enabled %}
+# `localPlugins`, not `plugins`: the source is vendored under
+# {{ traefik_state_dir }}/plugins-local/src by the role, so starting this proxy
+# needs no name resolution and no internet. See the role defaults for the outage
+# that made this the only acceptable shape.
+experimental:
+  localPlugins:
+    crowdsec:
+      moduleName: {{ traefik_crowdsec_plugin_module }}
+{% endif %}

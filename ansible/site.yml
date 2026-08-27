@@ -1,0 +1,134 @@
+---
+# Top-level playbook: configures every guest provisioned by OpenTofu.
+# Run order follows the dependency chain (secrets/SSO first, then apps).
+
+# Tags let the layers run independently: `--tags base` brings every container to
+# a usable baseline before OpenBao exists, since the app roles below consume
+# secrets the vault has to serve first.
+
+# The Proxmox node itself, first and on its own: the only machine here whose
+# rebuild is manual, and the one whose tooling used to live untracked in /root/.
+- name: Proxmox node tooling
+  hosts: proxmox
+  become: true
+  tags: node
+  roles:
+    - role: proxmox_host
+
+- name: Base configuration on all containers
+  hosts: unifi:core:traefik:media:dmz:dashboard:personal
+  become: true
+  tags: base
+  roles:
+    - role: common
+
+- name: Secret store and PKI
+  hosts: openbao
+  become: true
+  tags: secrets
+  roles:
+    - role: openbao
+
+- name: Identity provider (SSO)
+  hosts: authentik
+  become: true
+  tags: sso
+  roles:
+    - role: docker
+    - role: authentik
+
+- name: Reverse proxy + TLS
+  hosts: traefik
+  become: true
+  tags: proxy
+  roles:
+    - role: crowdsec
+      when: traefik_crowdsec_enabled | bool
+    - role: traefik
+
+# Same role, different inputs (group_vars/dmz.yml): the public entry point is
+# the internal one with the wildcard, the SSO and every extra route removed.
+- name: Public reverse proxy (DMZ)
+  hosts: dmz
+  become: true
+  tags: dmz
+  roles:
+    - role: crowdsec
+      when: traefik_crowdsec_enabled | bool
+    - role: traefik
+
+- name: Media server
+  hosts: jellyfin
+  become: true
+  tags: media
+  roles:
+    - role: media_jellyfin
+
+- name: "*arr stack"
+  hosts: arr
+  become: true
+  tags: media
+  roles:
+    - role: docker
+    - role: media_arr
+
+- name: Download client behind VPN
+  hosts: qbittorrent
+  become: true
+  tags: media
+  roles:
+    - role: docker
+    - role: media_qbittorrent
+
+- name: File shares
+  hosts: samba
+  become: true
+  tags: shares
+  roles:
+    - role: samba
+
+# After the SSO play above, not before: FreshRSS
+# authenticates against Authentik directly, so its provider has to exist.
+- name: RSS reader
+  hosts: freshrss
+  become: true
+  tags: personal
+  roles:
+    - role: docker
+    - role: freshrss
+
+- name: Obsidian sync backend
+  hosts: obsidian-sync
+  become: true
+  tags: personal
+  roles:
+    - role: docker
+    - role: obsidian_sync
+
+# After the SSO play for the same reason as FreshRSS: its provider has to exist
+# before the first sign-in, and the role's reconcile step assumes the account
+# the container creates is the one Authentik will resolve to.
+- name: Bookmark manager
+  hosts: linkding
+  become: true
+  tags: personal
+  roles:
+    - role: docker
+    - role: linkding
+
+# Last on purpose: its widgets read the services every play above installs, and
+# its reachability dots are only meaningful once those are running.
+- name: Landing page and availability monitoring
+  hosts: dashboard
+  become: true
+  tags: dashboard
+  roles:
+    - role: docker
+    - role: dashboard
+
+- name: UniFi controller
+  hosts: unifi
+  become: true
+  tags: unifi
+  roles:
+    - role: unifi_controller
