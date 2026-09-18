@@ -1,6 +1,6 @@
 ---
 # renovate: datasource=github-releases depName=traefik/traefik
-traefik_version: "3.7.10"
+traefik_version: "3.7.13"
 
 # Cloudflare API token for the DNS-01 challenge, read from OpenBao at run time.
 traefik_vault_path: traefik
