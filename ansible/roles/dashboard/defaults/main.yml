@@ -2,8 +2,8 @@
 # Pinned on purpose: a dashboard on `:latest` breaks exactly when you need it.
 # Homepage v2's built-in auth is inert here (HOMEPAGE_AUTH_ENABLED unset); it
 # stays behind Authentik forward-auth.
-dashboard_homepage_image: ghcr.io/gethomepage/homepage:v2.0.0
-dashboard_uptimekuma_image: louislam/uptime-kuma:2.4.0
+dashboard_homepage_image: ghcr.io/gethomepage/homepage:v2.4.0
+dashboard_uptimekuma_image: louislam/uptime-kuma:2.5.5
 
 dashboard_dir: /opt/dashboard
 dashboard_homepage_port: 3000
