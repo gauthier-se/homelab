@@ -54,11 +54,16 @@
       // A few images are written literally in a compose template rather than
       // going through a variable. The `{}` exclusions keep this from matching
       // `image: {{ some_var }}`.
+      //
+      // ⚠️ No `$` at the end. Without the multiline flag it means end of *file*,
+      // not end of line, so the first version matched only an image written on
+      // the last line and silently saw neither postgres nor redis in the
+      // Authentik compose. `[^\\s{}]+` already stops at the end of the tag.
       customType: 'regex',
       description: 'Images written literally in a compose template',
       managerFilePatterns: ['/^ansible/roles/.+/templates/compose\\.yaml\\.j2$/'],
       matchStrings: [
-        'image:\\s*(?<depName>[a-z0-9.\\-]+(?::\\d+)?/[^\\s{}:]+):(?<currentValue>[^\\s{}]+)\\s*$',
+        'image:\\s*(?<depName>[a-z0-9.\\-]+(?::\\d+)?/[^\\s{}:]+):(?<currentValue>[^\\s{}]+)',
       ],
       datasourceTemplate: 'docker',
     },
@@ -132,5 +137,24 @@
       matchPackageNames: ['/^lscr\\.io/linuxserver//'],
       groupName: 'linuxserver images',
     },
+    {
+      // `5.2.3_v2.0.14-ls476` is qBittorrent, then libtorrent, then the
+      // LinuxServer build. Docker versioning cannot read it and Renovate skips
+      // the image without a word on the dashboard. The libtorrent line is the
+      // compatibility part, so a jump from libtorrent 2.0 to 2.1 is never
+      // offered as a routine update.
+      description: 'qBittorrent tags carry libtorrent inside them',
+      matchPackageNames: ['lscr.io/linuxserver/qbittorrent'],
+      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)_v(?<compatibility>\\d+\\.\\d+)\\.\\d+-ls(?<build>\\d+)$',
+    },
   ],
+
+  // The devshell pin went stale once already: two months behind, it crashed
+  // Ansible on the next macOS. A monthly flake.lock refresh keeps it close
+  // enough to the OS that runs it.
+  nix: { enabled: true },
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['* 0-6 1-7 * 1'],
+  },
 }
