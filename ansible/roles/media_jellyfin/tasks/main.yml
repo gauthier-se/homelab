@@ -9,6 +9,7 @@
   ansible.builtin.get_url:
     url: https://repo.jellyfin.org/jellyfin_team.gpg.key
     dest: /etc/apt/keyrings/jellyfin.gpg.key
+    checksum: "sha256:{{ media_jellyfin_gpg_key_sha256 }}"
     mode: "0644"
 
 - name: Add the Jellyfin apt repository

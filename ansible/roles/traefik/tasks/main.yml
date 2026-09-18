@@ -130,15 +130,20 @@
           {{ plugin_dir }}/.traefik.yml is missing, so Traefik will start with
           plugins disabled and every router using crowdsec@file will 404.
 
-- name: Install the Traefik binary
+# Same shape as the OpenBao package: a fixed cache path verified against the
+# release checksums, fetched only when the version moves, and fetched in check
+# mode too so the extract below can say whether the binary would change.
+- name: Download the Traefik archive
   ansible.builtin.get_url:
     url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_amd64.tar.gz"
-    dest: "/tmp/traefik_{{ traefik_version }}.tar.gz"
+    checksum: "sha256:https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_checksums.txt"
+    dest: /var/cache/traefik_linux_amd64.tar.gz
     mode: "0644"
+  check_mode: false
 
 - name: Extract the Traefik binary
   ansible.builtin.unarchive:
-    src: "/tmp/traefik_{{ traefik_version }}.tar.gz"
+    src: /var/cache/traefik_linux_amd64.tar.gz
     dest: /usr/local/bin
     remote_src: true
     include:

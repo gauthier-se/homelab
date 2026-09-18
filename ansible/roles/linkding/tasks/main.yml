@@ -119,6 +119,8 @@
             print(("changed:" + ",".join(changed)) if changed else "ok")
   register: linkding_superuser
   changed_when: "'changed:' in linkding_superuser.stdout"
+  # This one writes, so check mode skips it and leaves no stdout behind. The
+  # two reports below default it rather than fail the whole check.
   no_log: true
 
 # Printed rather than failed. A second account holding the same address is not
@@ -133,7 +135,7 @@
       {{ linkding_admin_user }}. The next OIDC sign-in will fail with "Multiple
       users returned" until one of them is removed or given another address:
       `docker exec -u www-data linkding python manage.py shell`.
-  when: "'ambiguous:' in linkding_superuser.stdout"
+  when: "'ambiguous:' in (linkding_superuser.stdout | default(''))"
 
 - name: Report a Linkding superuser that does not exist yet
   ansible.builtin.debug:
@@ -142,4 +144,4 @@
       it on its very first start from LD_SUPERUSER_NAME; if this persists, the
       name in `homelab/linkding` changed after that first start and the old
       account is still the one holding the bookmarks.
-  when: "'absent' in linkding_superuser.stdout"
+  when: "'absent' in (linkding_superuser.stdout | default(''))"

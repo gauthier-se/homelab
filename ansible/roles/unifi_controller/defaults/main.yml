@@ -5,3 +5,10 @@
 # UniFi Network 9+.
 unifi_controller_mongodb_version: "8.0"
 unifi_controller_temurin_package: temurin-25-jre
+
+# Repository signing keys, pinned by digest: a key that changes upstream fails
+# the play instead of being trusted in silence. The MongoDB one follows
+# unifi_controller_mongodb_version and moves with it, by hand, like the suite.
+unifi_controller_adoptium_key_sha256: "a46d5d3ab75c3c86dddf1bfd2957a067a24b1c6b2d2ed2bc69294bf970c5160b"
+unifi_controller_mongodb_key_sha256: "8c467ea138207ee8d0cbbce3e005c82c73c81b3263e7909bdc36b9a1feff14f6"
+unifi_controller_unifi_key_sha256: "ee166984e9f50cd365c5c404864218bd1725b709ab5cc26d812ca2c7e823462d"

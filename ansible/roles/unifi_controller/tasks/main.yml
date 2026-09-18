@@ -12,18 +12,21 @@
   ansible.builtin.get_url:
     url: https://packages.adoptium.net/artifactory/api/gpg/key/public
     dest: /etc/apt/keyrings/adoptium.asc
+    checksum: "sha256:{{ unifi_controller_adoptium_key_sha256 }}"
     mode: "0644"
 
 - name: Add the MongoDB GPG key
   ansible.builtin.get_url:
     url: "https://www.mongodb.org/static/pgp/server-{{ unifi_controller_mongodb_version }}.asc"
     dest: /etc/apt/keyrings/mongodb.asc
+    checksum: "sha256:{{ unifi_controller_mongodb_key_sha256 }}"
     mode: "0644"
 
 - name: Add the UniFi GPG key
   ansible.builtin.get_url:
     url: https://dl.ui.com/unifi/unifi-repo.gpg
     dest: /etc/apt/keyrings/unifi-repo.gpg
+    checksum: "sha256:{{ unifi_controller_unifi_key_sha256 }}"
     mode: "0644"
 
 - name: Add the Adoptium apt repository

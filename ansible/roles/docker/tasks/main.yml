@@ -18,6 +18,7 @@
   ansible.builtin.get_url:
     url: https://download.docker.com/linux/debian/gpg
     dest: /etc/apt/keyrings/docker.asc
+    checksum: "sha256:{{ docker_gpg_key_sha256 }}"
     mode: "0644"
 
 - name: Add the Docker apt repository

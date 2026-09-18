@@ -21,3 +21,7 @@ crowdsec_bouncer_key_group: traefik
 # by construction, reach a decision about any of them. Setting a list here
 # removes the hub parser and installs this one in its place.
 crowdsec_whitelist_cidrs: null
+
+# The repository signing key, pinned by digest like every other apt key in these
+# roles: a key that changes upstream fails the play instead of being trusted.
+crowdsec_gpg_key_sha256: "cd5729fe6f95d29efc48f1cfe63e0d4a3088506cf99f3cf74b572c4b70429980"

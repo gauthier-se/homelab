@@ -1,13 +1,22 @@
 ---
+# A fixed path in /var/cache, checked against the release's own checksums:
+# the file is fetched again only when the version moves, and a tampered or
+# truncated package fails here instead of being installed. It used to live in
+# /tmp, which the container empties, so every run downloaded 76 MB again and
+# `--check` failed on the install below, two tasks before the config change
+# that restarts (and reseals) the vault. Downloading in check mode costs a
+# cache file and shows what the run would really do.
 - name: Download the OpenBao Debian package
   ansible.builtin.get_url:
     url: "https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/openbao_{{ openbao_version }}_linux_amd64.deb"
-    dest: "/tmp/openbao_{{ openbao_version }}.deb"
+    checksum: "sha256:https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/checksums.txt"
+    dest: /var/cache/openbao_linux_amd64.deb
     mode: "0644"
+  check_mode: false
 
 - name: Install OpenBao
   ansible.builtin.apt:
-    deb: "/tmp/openbao_{{ openbao_version }}.deb"
+    deb: /var/cache/openbao_linux_amd64.deb
     state: present
 
 - name: Manage the listener certificate from the internal PKI

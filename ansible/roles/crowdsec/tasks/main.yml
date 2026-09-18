@@ -3,6 +3,7 @@
   ansible.builtin.get_url:
     url: https://packagecloud.io/crowdsec/crowdsec/gpgkey
     dest: /etc/apt/keyrings/crowdsec.asc
+    checksum: "sha256:{{ crowdsec_gpg_key_sha256 }}"
     mode: "0644"
 
 # CrowdSec publishes no trixie suite yet; bookworm packages are what its own
@@ -39,6 +40,9 @@
   ansible.builtin.command: cscli collections list -o json
   register: crowdsec_installed
   changed_when: false
+  # Read-only, so it runs in check mode too: skipped, it leaves the next task
+  # nothing to read and `--check` stops here instead of reporting the rest.
+  check_mode: false
 
 - name: Install the missing detection collections
   ansible.builtin.command: "cscli collections install {{ item }}"
@@ -62,6 +66,7 @@
       ansible.builtin.command: cscli parsers list -o json
       register: crowdsec_parsers
       changed_when: false
+      check_mode: false  # read-only, see "List the installed collections"
 
     - name: Remove the hub's blanket private-range whitelist
       ansible.builtin.command: cscli parsers remove crowdsecurity/whitelists

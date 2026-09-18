@@ -7,3 +7,10 @@
 # Moving this is a migration, not an update: vzdump the guest first, read the
 # release notes, then change the value and replay the role.
 media_jellyfin_series: "10.11"
+
+# The signing key apt trusts for this repository, pinned by digest. A key that
+# changes upstream now fails the play instead of being trusted in silence, and
+# with a digest to compare against get_url answers from the file on disk: no
+# request, and no false "changed" in check mode. Update after checking the
+# vendor's announcement, never just to make the play pass.
+media_jellyfin_gpg_key_sha256: "a0cde241ae297fa6f0265c0bf15ce9eb9ee97c008904a59ab367a67d59532839"

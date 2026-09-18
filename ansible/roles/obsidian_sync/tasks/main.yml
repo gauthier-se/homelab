@@ -65,6 +65,7 @@
   delay: 2
   until: obsidian_sync_up is succeeded
   changed_when: false
+  check_mode: false  # a GET: read-only, and what follows depends on it
 
 # 412 is "already exists", which is the steady state on every replay after the
 # first. `single_node = true` in the config took care of _users, _replicator and
@@ -90,6 +91,7 @@
     status_code: [200, 404]
   register: obsidian_sync_account
   changed_when: false
+  check_mode: false  # a GET: read-only, and what follows depends on it
   no_log: true
 
 # Created once, never rewritten. Rewriting it on every play would report a
@@ -123,6 +125,7 @@
     status_code: 200
   register: obsidian_sync_security
   changed_when: false
+  check_mode: false  # a GET: read-only, and what follows depends on it
   no_log: true
 
 # Admin *of this database only*, not a server admin. A plain member cannot

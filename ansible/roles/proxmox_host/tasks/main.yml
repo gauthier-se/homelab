@@ -104,6 +104,7 @@
       register: proxmox_host_restic_probe
       changed_when: false
       failed_when: false
+      check_mode: false  # `restic cat config` only reads
 
     - name: Initialise the repository
       ansible.builtin.shell:
