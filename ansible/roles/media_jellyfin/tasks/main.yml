@@ -22,6 +22,18 @@
     signed_by: /etc/apt/keyrings/jellyfin.gpg.key
     state: present
 
+- name: Hold Jellyfin to its release line
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/jellyfin
+    content: |
+      # Managed by Ansible (media_jellyfin). A new major is a deliberate step.
+      Package: jellyfin jellyfin-server jellyfin-web
+      Pin: version {{ media_jellyfin_series }}.*
+      Pin-Priority: 1001
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Install Jellyfin
   ansible.builtin.apt:
     name: jellyfin

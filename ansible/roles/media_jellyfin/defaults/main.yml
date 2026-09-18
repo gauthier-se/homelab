@@ -1,0 +1,9 @@
+---
+# The release line apt is allowed to follow. Jellyfin's repository serves every
+# line under one suite, so without a pin the next `apt full-upgrade` takes the
+# server across a major and runs its database migrations, which have no way
+# back. Patches inside the line still arrive with the monthly pass.
+#
+# Moving this is a migration, not an update: vzdump the guest first, read the
+# release notes, then change the value and replay the role.
+media_jellyfin_series: "10.11"
