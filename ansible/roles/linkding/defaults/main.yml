@@ -5,7 +5,7 @@
 # The plain image, not `-plus`, which adds Chromium and single-file-cli to
 # archive a snapshot of every bookmark: 700 MB of image and a browser process
 # on the Servers VLAN, for a job this tool was not chosen to do.
-linkding_image: sissbruecker/linkding:1.46.2
+linkding_image: sissbruecker/linkding:1.47.0
 
 linkding_dir: /opt/linkding
 

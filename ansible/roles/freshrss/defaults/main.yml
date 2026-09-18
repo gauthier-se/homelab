@@ -4,7 +4,7 @@
 #
 # The Debian image, not `-alpine`: OpenID Connect needs mod_auth_openidc, which
 # upstream ships only in the Debian variant (Docker/FreshRSS.Apache.conf).
-freshrss_image: freshrss/freshrss:1.28.0
+freshrss_image: freshrss/freshrss:1.30.0
 freshrss_postgres_image: postgres:17-alpine
 
 freshrss_dir: /opt/freshrss

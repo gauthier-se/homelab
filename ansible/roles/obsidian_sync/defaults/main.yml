@@ -1,7 +1,7 @@
 ---
 # Pinned: this database is the only copy of the vault that every device
 # converges on, and a major CouchDB bump is a migration, not a pull.
-obsidian_sync_image: couchdb:3.5.0
+obsidian_sync_image: couchdb:3.5.2
 
 obsidian_sync_dir: /opt/obsidian-sync
 obsidian_sync_port: 5984
