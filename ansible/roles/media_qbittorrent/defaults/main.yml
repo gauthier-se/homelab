@@ -4,7 +4,7 @@ media_qbittorrent_pgid: 1000
 media_qbittorrent_media_root: /mnt/hdd
 
 # Pinned to the version that was already running, so pinning changed nothing.
-media_qbittorrent_image: lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls471
+media_qbittorrent_image: lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls476
 
 # ⚠️ `qmcgaw/gluetun:latest` builds from master, not from a release, so it
 # resolves to a commit that matches no published tag. On the container standing
