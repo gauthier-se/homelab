@@ -41,7 +41,6 @@ PROMPTS = [
     ("opnsense_key", "OPNsense API key (System > Access > Users > API keys)"),
     ("opnsense_secret", "OPNsense API secret"),
     ("jellyfin_key", "Jellyfin API key (Dashboard > API keys)"),
-    ("audiobookshelf_token", "Audiobookshelf API token (Config > Users > your account)"),
     ("authentik_token", "Authentik API token (Directory > Tokens, intent: API token)"),
     ("qbittorrent_username", "qBittorrent WebUI username"),
     ("qbittorrent_password", "qBittorrent WebUI password"),
@@ -52,7 +51,6 @@ SECRET_PROMPTS = {
     "unifi_password",
     "opnsense_secret",
     "jellyfin_key",
-    "audiobookshelf_token",
     "authentik_token",
     "qbittorrent_password",
 }

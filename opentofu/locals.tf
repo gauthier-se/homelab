@@ -108,7 +108,7 @@ locals {
       # 24 GB: a `compose pull` holds the new images alongside the old ones
       # until the prune, so headroom must cover the whole image set (5.5 GB).
       vm_id        = 211
-      description  = "*arr stack (Radarr/Sonarr/Lidarr/Bazarr/Prowlarr/Seerr/Audiobookshelf): Docker"
+      description  = "*arr stack (Radarr/Sonarr/Lidarr/Bazarr/Prowlarr/Seerr): Docker"
       vlan_id      = 20
       ipv4_address = "10.10.20.11/24"
       ipv4_gateway = local.gateways.servers

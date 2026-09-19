@@ -61,11 +61,10 @@ complete replay reports zero changes today.
 
 | | Tool | Role |
 |---|------|------|
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png" width="18" align="top"> | **Jellyfin** | Media server, iGPU passthrough |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png" width="18" align="top"> | **Jellyfin** | Media server and ebook library, iGPU passthrough |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/seerr.png" width="18" align="top"> | **Seerr** | Request front end |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/radarr.png" width="18" align="top"> <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/sonarr.png" width="18" align="top"> <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/lidarr.png" width="18" align="top"> <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/bazarr.png" width="18" align="top"> <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/prowlarr.png" width="18" align="top"> | **\*arr stack** | Radarr, Sonarr, Lidarr, Bazarr, Prowlarr |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/qbittorrent.png" width="18" align="top"> | **qBittorrent** | Behind a gluetun VPN kill-switch |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/audiobookshelf.png" width="18" align="top"> | **Audiobookshelf** | Audiobooks and podcasts |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/samba-server.png" width="18" align="top"> | **Samba** | SMB shares onto the 18 TB disk |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png" width="18" align="top"> | **Homepage** | Landing page, generated from the proxy's route list |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="18" align="top"> | **Uptime Kuma** | Availability history |

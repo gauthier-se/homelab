@@ -173,18 +173,6 @@
           key: {{ var('seerr_key') }}
 {% endif %}
 
-    - Audiobookshelf:
-        icon: audiobookshelf.png
-        href: https://books.{{ homelab_domain }}
-        description: Audiobooks and podcasts
-        siteMonitor: {{ b.audiobookshelf }}
-{% if 'audiobookshelf_token' in s %}
-        widget:
-          type: audiobookshelf
-          url: {{ b.audiobookshelf }}
-          key: {{ var('audiobookshelf_token') }}
-{% endif %}
-
 - Media automation:
     - Radarr:
         icon: radarr.png

@@ -37,7 +37,6 @@ dashboard_longitude: "2.3522"
 dashboard_backends:
   jellyfin: "http://10.10.20.10:8096"
   seerr: "http://10.10.20.11:5055"
-  audiobookshelf: "http://10.10.20.11:13378"
   radarr: "http://10.10.20.11:7878"
   sonarr: "http://10.10.20.11:8989"
   lidarr: "http://10.10.20.11:8686"

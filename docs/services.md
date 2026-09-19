@@ -32,7 +32,7 @@ service ports applications actually need, and it never initiates outward.
 |----|-------|---------|------|-----------|
 | 200 | `traefik` | `10.10.20.2` | Internal reverse proxy, Let's Encrypt wildcard | 1 / 512 MB |
 | 210 | `jellyfin` | `10.10.20.10` | Jellyfin, iGPU passthrough for transcoding | 4 / 4 GB |
-| 211 | `arr` | `10.10.20.11` | Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, Seerr, Audiobookshelf | 4 / 4 GB |
+| 211 | `arr` | `10.10.20.11` | Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, Seerr | 4 / 4 GB |
 | 212 | `qbittorrent` | `10.10.20.12` | qBittorrent behind a gluetun VPN kill-switch | 2 / 2 GB |
 | 213 | `samba` | `10.10.20.13` | SMB shares onto the 18 TB disk | 2 / 512 MB |
 | 214 | `dashboard` | `10.10.20.14` | Homepage and Uptime Kuma | 2 / 2 GB |
@@ -69,7 +69,6 @@ certificate order.
 |-------|---------|------|
 | `jellyfin` | Jellyfin | open |
 | `requests` | Seerr | open |
-| `books` | Audiobookshelf | open |
 | `rss` | FreshRSS | its own OIDC against Authentik |
 | `links` | Linkding | its own OIDC against Authentik |
 | `obsidian` | CouchDB | none: an API with no interactive login |
@@ -82,8 +81,8 @@ certificate order.
 
 Three categories of "open" here, and they are not the same thing:
 
-- **Jellyfin, Seerr and Audiobookshelf** cannot sit behind forward-auth: TV and
-  phone apps cannot follow an SSO redirect.
+- **Jellyfin and Seerr** cannot sit behind forward-auth: TV and phone apps
+  cannot follow an SSO redirect.
 - **FreshRSS and Linkding** authenticate against Authentik themselves, over
   OIDC. Putting forward-auth in front of them as well would break the mobile
   clients that use their APIs, which never see the web login.

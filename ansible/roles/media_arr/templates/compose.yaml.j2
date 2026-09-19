@@ -51,18 +51,3 @@ services:
       TZ: "{{ homelab_timezone }}"
     ports:
       - "8191:8191"
-
-  audiobookshelf:
-    image: {{ media_arr_audiobookshelf_image }}
-    container_name: audiobookshelf
-    restart: unless-stopped
-    environment:
-      AUDIOBOOKSHELF_UID: "{{ media_arr_puid }}"
-      AUDIOBOOKSHELF_GID: "{{ media_arr_pgid }}"
-      TZ: "{{ homelab_timezone }}"
-    volumes:
-      - ./audiobookshelf/config:/config
-      - ./audiobookshelf/metadata:/metadata
-      - {{ media_arr_media_root }}:{{ media_arr_media_root }}
-    ports:
-      - "13378:80"

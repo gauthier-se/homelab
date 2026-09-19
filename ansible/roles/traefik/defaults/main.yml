@@ -39,7 +39,6 @@ traefik_services:
   # No SSO: TV and phone apps cannot follow a forward-auth redirect.
   - { name: jellyfin, url: "http://10.10.20.10:8096" }
   - { name: requests, url: "http://10.10.20.11:5055" }
-  - { name: books, url: "http://10.10.20.11:13378" }
   - { name: radarr, url: "http://10.10.20.11:7878", auth: true }
   - { name: sonarr, url: "http://10.10.20.11:8989", auth: true }
   - { name: lidarr, url: "http://10.10.20.11:8686", auth: true }

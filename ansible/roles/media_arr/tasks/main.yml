@@ -16,7 +16,11 @@
     mode: "0644"
   notify: Restart arr stack
 
+# remove_orphans: a service taken out of the compose file is taken off the host
+# too. Without it, a retired container keeps running on the old definition,
+# unmanaged and unpatched, and nothing in the play says so.
 - name: Start the *arr stack
   community.docker.docker_compose_v2:
     project_src: /opt/arr-stack
     state: present
+    remove_orphans: true

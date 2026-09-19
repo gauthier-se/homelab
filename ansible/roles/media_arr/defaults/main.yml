@@ -16,11 +16,12 @@ media_arr_apps:
   - { name: bazarr, image: "lscr.io/linuxserver/bazarr:v1.6.1-ls364", port: 6767 }
   - { name: prowlarr, image: "lscr.io/linuxserver/prowlarr:2.6.5.5623-ls161", port: 9696 }
 
-# Two services the pre-wipe stack ran that the *arr list above does not cover:
-# flaresolverr is stateless (Prowlarr calls it for Cloudflare-protected
-# indexers), audiobookshelf keeps its own config + metadata dirs.
+# A service the *arr list above does not cover: flaresolverr is stateless
+# (Prowlarr calls it for Cloudflare-protected indexers).
+#
+# Audiobookshelf used to sit here too. It only ever held ebooks, and Jellyfin 12
+# reads those itself, so it was retired on 2026-09-19.
 media_arr_flaresolverr_image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
-media_arr_audiobookshelf_image: ghcr.io/advplyr/audiobookshelf:2.36.1
 
 # Seerr, the request front end, formerly Jellyseerr. Deliberately pinned while
 # everything around it rolls: it answers from the internet through the DMZ, so
