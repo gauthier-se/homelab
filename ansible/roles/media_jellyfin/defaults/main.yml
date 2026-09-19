@@ -5,8 +5,13 @@
 # back. Patches inside the line still arrive with the monthly pass.
 #
 # Moving this is a migration, not an update: vzdump the guest first, read the
-# release notes, then change the value and replay the role.
-media_jellyfin_series: "10.11"
+# release notes, then change the value and replay the role. The role installs
+# with state: present, so the replay only moves the pin: the package itself
+# crosses over with `apt full-upgrade` on the guest.
+#
+# From 12.0 on, Jellyfin dropped the leading "10.": the first number is the
+# major and 12.x are fixes, so "12" pins the line the way "10.11" did.
+media_jellyfin_series: "12"
 
 # The signing key apt trusts for this repository, pinned by digest. A key that
 # changes upstream now fails the play instead of being trusted in silence, and
