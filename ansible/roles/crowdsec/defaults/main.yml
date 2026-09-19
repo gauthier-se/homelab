@@ -22,6 +22,23 @@ crowdsec_bouncer_key_group: traefik
 # removes the hub parser and installs this one in its place.
 crowdsec_whitelist_cidrs: null
 
+# Requests no scenario ever evaluates, whoever sends them: traffic an
+# application produces in normal use and that looks like an attack to the
+# generic HTTP scenarios. Each entry is a CrowdSec expression over the parsed
+# event; an empty list removes the parser.
+#
+# Jellyfin clients ask for every image type of every item on screen without
+# checking which ones exist, and Jellyfin answers 404 for the missing ones. On
+# 19/09/2026 one Swiftfin home screen drew ten of those in under a second, which
+# `crowdsecurity/http-probing` read as a scan and banned the Apple TV. The ban's
+# own 403s then fed `http-generic-403-bf` on every retry, so the app kept
+# renewing its ban for as long as it ran. The image endpoints are anonymous in
+# Jellyfin and no scanner goes looking for them, so skipping them costs nothing.
+crowdsec_whitelist_expressions:
+  - >-
+    evt.Meta.traefik_router_name in ['jellyfin@file', 'jellyfin-public@file']
+    && evt.Meta.http_path matches '^/Items/[^/]+/Images/'
+
 # The repository signing key, pinned by digest like every other apt key in these
 # roles: a key that changes upstream fails the play instead of being trusted.
 crowdsec_gpg_key_sha256: "cd5729fe6f95d29efc48f1cfe63e0d4a3088506cf99f3cf74b572c4b70429980"

@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Application traffic that looks hostile to the generic HTTP scenarios and is
+# not: dropped here, before any scenario sees it, whatever the source address.
+name: homelab/app-whitelists
+description: "Requests this instance never evaluates"
+whitelist:
+  reason: "benign application traffic"
+  expression:
+{% for expression in crowdsec_whitelist_expressions %}
+    - {{ expression | to_json }}
+{% endfor %}

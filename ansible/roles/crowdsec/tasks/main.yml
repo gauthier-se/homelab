@@ -85,6 +85,26 @@
         mode: "0644"
       notify: Restart crowdsec
 
+# Separate from the address whitelist above: that one only exists where the
+# hub's RFC1918 exemption was removed, this one applies facing the internet too,
+# where a phone on mobile data browsing Jellyfin looks just as much like a scan.
+- name: Install the application traffic whitelist
+  ansible.builtin.template:
+    src: app-whitelists.yaml.j2
+    dest: /etc/crowdsec/parsers/s02-enrich/homelab-app-whitelists.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  when: crowdsec_whitelist_expressions | length > 0
+  notify: Restart crowdsec
+
+- name: Remove the application traffic whitelist when none is wanted
+  ansible.builtin.file:
+    path: /etc/crowdsec/parsers/s02-enrich/homelab-app-whitelists.yaml
+    state: absent
+  when: crowdsec_whitelist_expressions | length == 0
+  notify: Restart crowdsec
+
 - name: Ensure CrowdSec is enabled and running
   ansible.builtin.systemd_service:
     name: crowdsec
