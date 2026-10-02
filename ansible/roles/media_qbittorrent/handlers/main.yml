@@ -3,3 +3,14 @@
   community.docker.docker_compose_v2:
     project_src: /opt/qbit-vpn
     state: restarted
+
+# Only the one service: a config change has no reason to drop the tunnel and
+# stall every torrent with it. Skipped in check mode, where the compose file was
+# never written and the service does not exist yet on a first run.
+- name: Restart cross-seed
+  community.docker.docker_compose_v2:
+    project_src: /opt/qbit-vpn
+    services:
+      - cross-seed
+    state: restarted
+  when: not ansible_check_mode

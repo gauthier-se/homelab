@@ -42,7 +42,85 @@
     mode: "0600"
   notify: Restart qbittorrent
 
+# Owned by the container user: cross-seed keeps its database next to its config.
+- name: Create the cross-seed config directory
+  ansible.builtin.file:
+    path: /opt/qbit-vpn/cross-seed
+    state: directory
+    owner: "{{ media_qbittorrent_puid }}"
+    group: "{{ media_qbittorrent_pgid }}"
+    mode: "0750"
+
+# Not tolerant of a missing file the way the dashboard is: without the key
+# cross-seed has nothing to search, so a play that cannot read it should stop.
+- name: Read Prowlarr's configuration
+  ansible.builtin.slurp:
+    src: "{{ media_qbittorrent_cross_seed_prowlarr_config }}"
+  delegate_to: "{{ media_qbittorrent_cross_seed_prowlarr_host }}"
+  register: media_qbittorrent_prowlarr_config
+  no_log: true
+
+- name: Extract Prowlarr's API key
+  ansible.builtin.set_fact:
+    media_qbittorrent_cross_seed_prowlarr_key: >-
+      {{ media_qbittorrent_prowlarr_config.content | b64decode
+         | regex_findall('<ApiKey>([^<]+)</ApiKey>') | first }}
+  no_log: true
+
+- name: Deploy the cross-seed config
+  ansible.builtin.template:
+    src: cross-seed.config.js.j2
+    dest: /opt/qbit-vpn/cross-seed/config.js
+    owner: "{{ media_qbittorrent_puid }}"
+    group: "{{ media_qbittorrent_pgid }}"
+    mode: "0600"
+  # The file carries the tracker key: --diff would print it.
+  diff: false
+  notify: Restart cross-seed
+
+- name: Create the cross-seed link directory
+  ansible.builtin.file:
+    path: "{{ media_qbittorrent_cross_seed_link_dir }}"
+    state: directory
+    owner: "{{ media_qbittorrent_puid }}"
+    group: "{{ media_qbittorrent_pgid }}"
+    mode: "0755"
+
 - name: Start the qBittorrent stack
   community.docker.docker_compose_v2:
     project_src: /opt/qbit-vpn
     state: present
+
+# The on-completion hook lives in qBittorrent's own settings, which this role
+# does not render (same as Session\Interface): set it through the API from
+# inside the namespace, where no credential is needed. Retried because the
+# WebUI may not be listening yet right after the stack starts.
+- name: Read qBittorrent's on-completion hook
+  ansible.builtin.command: docker exec qbittorrent curl -fsS http://127.0.0.1:8080/api/v2/app/preferences
+  register: media_qbittorrent_prefs
+  until: media_qbittorrent_prefs.rc == 0
+  retries: 15
+  delay: 2
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Point qBittorrent's on-completion hook at cross-seed
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -i
+      - qbittorrent
+      - curl
+      - -fsS
+      - --data-urlencode
+      - json@-
+      - http://127.0.0.1:8080/api/v2/app/setPreferences
+    stdin: "{{ {'autorun_enabled': true, 'autorun_program': media_qbittorrent_cross_seed_hook} | to_json }}"
+    stdin_add_newline: false
+  when: >-
+    not (media_qbittorrent_prefs.stdout | from_json).autorun_enabled
+    or (media_qbittorrent_prefs.stdout | from_json).autorun_program != media_qbittorrent_cross_seed_hook
+  changed_when: true
+  no_log: true

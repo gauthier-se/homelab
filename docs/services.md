@@ -33,7 +33,7 @@ service ports applications actually need, and it never initiates outward.
 | 200 | `traefik` | `10.10.20.2` | Internal reverse proxy, Let's Encrypt wildcard | 1 / 512 MB |
 | 210 | `jellyfin` | `10.10.20.10` | Jellyfin, iGPU passthrough for transcoding | 4 / 4 GB |
 | 211 | `arr` | `10.10.20.11` | Radarr, Sonarr, Lidarr, Bazarr, Prowlarr, Seerr | 4 / 4 GB |
-| 212 | `qbittorrent` | `10.10.20.12` | qBittorrent behind a gluetun VPN kill-switch | 2 / 2 GB |
+| 212 | `qbittorrent` | `10.10.20.12` | qBittorrent behind a gluetun VPN kill-switch, plus cross-seed | 2 / 2 GB |
 | 213 | `samba` | `10.10.20.13` | SMB shares onto the 18 TB disk | 2 / 512 MB |
 | 214 | `dashboard` | `10.10.20.14` | Homepage and Uptime Kuma | 2 / 2 GB |
 | 215 | `freshrss` | `10.10.20.15` | FreshRSS and PostgreSQL | 2 / 1.5 GB |

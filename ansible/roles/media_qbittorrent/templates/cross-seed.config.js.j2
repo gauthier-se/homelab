@@ -1,0 +1,58 @@
+// {{ ansible_managed }}
+// Every option is documented at https://www.cross-seed.org/docs/basics/options
+// Only the ones that differ from upstream's template, or that this setup
+// depends on, are explained here.
+module.exports = {
+	apiKey: {{ media_qbittorrent_cross_seed_api_key | to_json }},
+	torznab: [
+{% for id in media_qbittorrent_cross_seed_prowlarr_indexers %}
+		"{{ media_qbittorrent_cross_seed_prowlarr_url }}/{{ id }}/api?apikey={{ media_qbittorrent_cross_seed_prowlarr_key }}",
+{% endfor %}
+	],
+
+	// The loopback of gluetun's namespace, where qBittorrent asks for no
+	// credential (WebUI\LocalHostAuth=false). An empty user and password is
+	// enough for /auth/login to hand out a session cookie.
+	torrentClients: ["qbittorrent:http://127.0.0.1:8080"],
+	useClientTorrents: true,
+
+	// Linking, and not injecting onto the original save path: a partial match
+	// then downloads its missing files into the link directory, never on top
+	// of the data the original torrent is seeding. It is also what allows
+	// "partial", which "strict" would not.
+	linkDirs: [{{ media_qbittorrent_cross_seed_link_dir | to_json }}],
+	linkType: "hardlink",
+	linkCategory: "cross-seed-link",
+	matchMode: "partial",
+	skipRecheck: true,
+	autoResumeMaxDownload: 52428800,
+	seasonFromEpisodes: 1,
+	includeSingleEpisodes: false,
+
+	// Upstream skips torrents that are mostly not video. A good share of what
+	// is seeded here is music and ebooks, which the trackers carry as well.
+	includeNonVideos: true,
+
+	// "category:" with no value skips every torrent without a category, and
+	// here those are exactly the ones seeding straight from /mnt/hdd/media
+	// (ebooks, courses, a few added by hand). Their files belong to uids the
+	// container does not map, so they show up as nobody, and with
+	// fs.protected_hardlinks=1 they cannot be hardlinked. cross-seed tests a
+	// link from every save path at start-up and refuses to index anything if
+	// one fails, so leaving them in stops the whole daemon, not just them.
+	blockList: ["category:"],
+
+	action: "inject",
+	duplicateCategories: false,
+	outputDir: null,
+
+	// Upstream's defaults, kept: 400 searches a day at one every 30 seconds.
+	// The first pass over the whole client therefore spreads over several days,
+	// which is the polite way to arrive on a tracker with a thousand torrents.
+	delay: 30,
+	searchLimit: 400,
+	searchCadence: "1 day",
+	rssCadence: "30 minutes",
+	excludeRecentSearch: "3 days",
+	excludeOlder: "2 weeks",
+};

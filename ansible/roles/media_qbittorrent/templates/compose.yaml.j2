@@ -21,6 +21,10 @@ services:
       VPN_PORT_FORWARDING: "on"
       PORT_FORWARD_ONLY: "on"
       VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh /gluetun-scripts/qbt-set-port.sh {{ '{{PORT}}' }}
+      # The one LAN destination allowed outside the tunnel: Prowlarr, which
+      # cross-seed searches through. A /32, so the kill-switch still drops
+      # everything else that does not leave by the VPN.
+      FIREWALL_OUTBOUND_SUBNETS: "{{ hostvars[media_qbittorrent_cross_seed_prowlarr_host].ansible_host }}/32"
     volumes:
       - ./scripts:/gluetun-scripts:ro
     ports:
@@ -41,3 +45,18 @@ services:
       - {{ media_qbittorrent_media_root }}:{{ media_qbittorrent_media_root }}
     depends_on:
       - gluetun
+
+  cross-seed:
+    image: {{ media_qbittorrent_cross_seed_image }}
+    container_name: cross-seed
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+    user: "{{ media_qbittorrent_puid }}:{{ media_qbittorrent_pgid }}"
+    command: daemon
+    volumes:
+      - ./cross-seed:/config
+      # Same path as inside qBittorrent: cross-seed opens the files at the save
+      # paths the client reports, so the two views of the disk must agree.
+      - {{ media_qbittorrent_media_root }}:{{ media_qbittorrent_media_root }}
+    depends_on:
+      - qbittorrent
