@@ -63,11 +63,12 @@ media_qbittorrent_cross_seed_vault: >-
 
 media_qbittorrent_cross_seed_api_key: "{{ media_qbittorrent_cross_seed_vault.api_key }}"
 
-# ⚠️ Through Prowlarr, not the tracker's own Torznab endpoint. V3X answers with
-# `<guid isPermaLink="true">`, which cross-seed 6.13.7 parses into an object
-# instead of a string, and every RSS and search result then dies in SQLite
-# ("can only bind numbers, strings, bigints, buffers, and null"). Prowlarr
-# re-emits a bare `<guid>`. Checked 2026-10-02.
+# Through Prowlarr, not the tracker's own Torznab endpoint: cross-seed is built
+# around Prowlarr or Jackett feeds and does not support native ones. Pointed at
+# V3X directly, it parses `<guid isPermaLink="true">` into an object and every
+# result dies in SQLite. Upstream's answer (cross-seed/cross-seed#1223) is to
+# go through Prowlarr, which is why gluetun lets this one host out of the
+# tunnel.
 #
 # Prowlarr's key is read at play time from the host that generated it, like the
 # dashboard does: no copy in the vault to drift from the real one.
