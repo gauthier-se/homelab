@@ -38,3 +38,14 @@ media_jellyfin_custom_css_files:
 media_jellyfin_login_disclaimer: ""
 media_jellyfin_splashscreen_enabled: false
 
+# Plugins kept off the server. Jellyfin loads every folder under plugins/, so
+# removing one means deleting its folder and its saved settings (a reinstall
+# would pick those up again), then restarting. A plugin reinstalled from the
+# dashboard is removed again on the next replay.
+#
+# JavaScript Injector ran its scripts in every session. The three it held were
+# dead: a raw <script> tag pasted as JavaScript kept the whole bundle from
+# parsing, so none of them had run.
+media_jellyfin_absent_plugins:
+  - name: JavaScript Injector
+    config: Jellyfin.Plugin.JavaScriptInjector.xml

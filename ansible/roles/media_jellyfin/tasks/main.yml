@@ -57,6 +57,23 @@
     mode: "0644"
   notify: Restart jellyfin
 
+- name: Find plugins that must stay off the server
+  ansible.builtin.find:
+    paths: /var/lib/jellyfin/plugins
+    patterns: "{{ media_jellyfin_absent_plugins | map(attribute='name') | map('regex_replace', '$', '_*') | list }}"
+    file_type: directory
+  register: media_jellyfin_absent_plugin_dirs
+
+- name: Remove them, with their saved settings
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ (media_jellyfin_absent_plugin_dirs.files | map(attribute='path') | list)
+       + (media_jellyfin_absent_plugins | map(attribute='config')
+          | map('regex_replace', '^', '/var/lib/jellyfin/plugins/configurations/') | list) }}
+  notify: Restart jellyfin
+
 - name: Ensure Jellyfin is enabled and running
   ansible.builtin.systemd_service:
     name: jellyfin
