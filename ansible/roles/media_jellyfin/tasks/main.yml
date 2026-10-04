@@ -48,6 +48,15 @@
     append: true
   notify: Restart jellyfin
 
+- name: Brand the web client (Custom CSS, login disclaimer, splash screen)
+  ansible.builtin.template:
+    src: branding.xml.j2
+    dest: /etc/jellyfin/branding.xml
+    owner: jellyfin
+    group: jellyfin
+    mode: "0644"
+  notify: Restart jellyfin
+
 - name: Ensure Jellyfin is enabled and running
   ansible.builtin.systemd_service:
     name: jellyfin

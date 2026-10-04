@@ -1,0 +1,85 @@
+/*! Cinema (cinematheque add-on) v0.1.0 for Jellyfin 12.1 | MIT | github.com/gauthier-se/jellyfin-theme-cinema */
+:is(.cinematheque, .cin-appbar) .cin-title {
+  letter-spacing: -.01em;
+  font-weight: 700;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-tab {
+  border-radius: var(--cn-pill);
+  min-width: 0;
+  font: 600 .95rem/1.75 var(--cn-font);
+  padding: 6px 16px;
+  transition: color .2s, background-color .2s;
+  color: var(--cn-text-2) !important;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-tab:hover {
+  background: var(--cn-hover);
+  color: var(--cn-text) !important;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-tab-active, :is(.cinematheque, .cin-appbar) .cin-tab-active:hover {
+  background: var(--cn-selected);
+  color: var(--cn-text) !important;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-tab-icon {
+  display: none;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-input {
+  border: 1px solid var(--cn-field-line);
+  border-radius: var(--cn-radius-control);
+  background: var(--cn-field);
+}
+
+:is(.cinematheque, .cin-appbar) .cin-input[type="search"] {
+  border-radius: var(--cn-pill);
+}
+
+:is(.cinematheque, .cin-appbar) :is(.cin-country, .cin-movement) {
+  border-radius: var(--cn-radius);
+  background: var(--cn-surface);
+  transition: background-color .35s var(--cn-ease);
+  border: 0;
+}
+
+:is(.cinematheque, .cin-appbar) :is(.cin-country, .cin-movement):hover {
+  background: var(--cn-surface-hover);
+}
+
+:is(.cinematheque, .cin-appbar) .cin-chip {
+  border-color: #ffffff24;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-chip:hover {
+  border-color: #fff6;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-chip-active {
+  background: var(--cn-selected);
+  color: var(--cn-text);
+  border-color: #0000;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-more {
+  border-radius: var(--cn-pill);
+  background: #ffffff1a;
+  border: 0;
+  padding: .65rem 1.6rem;
+  font-weight: 600;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-more:hover {
+  background: #ffffff2e;
+}
+
+:is(.cinematheque, .cin-appbar) .cin-progress-bar {
+  background: var(--cn-gradient);
+}
+
+:is(.cinematheque, .cin-appbar) .cin-seen-badge {
+  background: var(--cn-scrim);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}

@@ -19,3 +19,22 @@ media_jellyfin_series: "12"
 # request, and no false "changed" in check mode. Update after checking the
 # vendor's announcement, never just to make the play pass.
 media_jellyfin_gpg_key_sha256: "a0cde241ae297fa6f0265c0bf15ce9eb9ee97c008904a59ab367a67d59532839"
+
+# Branding (Dashboard > General): the role owns /etc/jellyfin/branding.xml.
+# A Custom CSS or login disclaimer typed in the dashboard lasts until the next
+# replay, which puts these values back and reports "changed". Jellyfin reads
+# the file at start only, so a change here restarts the server.
+#
+# Custom CSS is the concatenation of these files, in order. They are the
+# Cinema theme (github.com/gauthier-se/jellyfin-theme-cinema), vendored from
+# its dist/ so the web client fetches nothing from a CDN. To move to a new
+# release, copy its dist/cinema.css and the add-ons for the plugins this
+# server runs into files/cinema/. An empty list serves no CSS.
+media_jellyfin_custom_css_files:
+  - cinema/cinema.css
+  - cinema/addons/media-bar.css
+  - cinema/addons/jellyfin-enhanced.css
+  - cinema/addons/cinematheque.css
+media_jellyfin_login_disclaimer: ""
+media_jellyfin_splashscreen_enabled: false
+
