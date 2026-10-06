@@ -25,16 +25,25 @@ media_jellyfin_gpg_key_sha256: "a0cde241ae297fa6f0265c0bf15ce9eb9ee97c008904a59a
 # replay, which puts these values back and reports "changed". Jellyfin reads
 # the file at start only, so a change here restarts the server.
 #
-# Custom CSS is the concatenation of these files, in order. They are the
-# Cinema theme (github.com/gauthier-se/jellyfin-theme-cinema), vendored from
-# its dist/ so the web client fetches nothing from a CDN. To move to a new
-# release, copy its dist/cinema.css and the add-ons for the plugins this
-# server runs into files/cinema/. An empty list serves no CSS.
-media_jellyfin_custom_css_files:
-  - cinema/cinema.css
-  - cinema/addons/media-bar.css
-  - cinema/addons/jellyfin-enhanced.css
-  - cinema/addons/cinematheque.css
+# Custom CSS is the Cinema theme (github.com/gauthier-se/jellyfin-theme-cinema):
+# the play downloads these files from the release on the controller and
+# writes them, in order, into branding.xml, so browsers fetch nothing from a
+# CDN. Each file is pinned by digest, so a release asset that changes fails
+# the play. To move to a new release, change the version, then the digests
+# (`shasum -a 256` on the downloaded files). An empty list serves no CSS.
+media_jellyfin_cinema_version: "0.1.0"
+media_jellyfin_cinema_files:
+  - name: cinema.css
+    sha256: "310efb2d3d9749046b05fe2cf41f46767e549d551d96471a89fe5f253c7e907d"
+  # Add-ons, for the plugins this server runs
+  - name: media-bar.css
+    sha256: "55fbf262989e63ba943fa6b157bf08dc1e2a9db7dc8e117a4b29f953f06e3cdd"
+  - name: jellyfin-enhanced.css
+    sha256: "d8460dfdc672b3348697202b034a7a65853a3fe3bfcb1e59adb053a6cb3b05eb"
+  - name: cinematheque.css
+    sha256: "a5c9d40e842345de3d33c70f443ec6719dd38d0525fba6e3627bb8d05a488a4e"
+# Where the controller keeps the downloads, one folder per release
+media_jellyfin_cinema_cache: "{{ lookup('ansible.builtin.env', 'HOME') }}/.cache/homelab/jellyfin-cinema/{{ media_jellyfin_cinema_version }}"
 media_jellyfin_login_disclaimer: ""
 media_jellyfin_splashscreen_enabled: false
 

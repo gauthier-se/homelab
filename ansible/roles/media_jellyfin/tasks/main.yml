@@ -48,6 +48,33 @@
     append: true
   notify: Restart jellyfin
 
+# The template reads the theme on the controller, so it is downloaded there.
+# check_mode: false because check mode would skip the download and leave the
+# template nothing to read; it only fills a local cache.
+- name: Create the Cinema theme cache on the controller
+  ansible.builtin.file:
+    path: "{{ media_jellyfin_cinema_cache }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Download the Cinema theme release
+  ansible.builtin.get_url:
+    url: "https://github.com/gauthier-se/jellyfin-theme-cinema/releases/download/v{{ media_jellyfin_cinema_version }}/{{ item.name }}"
+    dest: "{{ media_jellyfin_cinema_cache }}/{{ item.name }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    mode: "0644"
+  loop: "{{ media_jellyfin_cinema_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
 - name: Brand the web client (Custom CSS, login disclaimer, splash screen)
   ansible.builtin.template:
     src: branding.xml.j2

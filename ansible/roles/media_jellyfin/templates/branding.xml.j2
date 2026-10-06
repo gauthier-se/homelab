@@ -2,6 +2,7 @@
 <!-- Managed by Ansible (media_jellyfin). Dashboard edits are overwritten on the next replay. -->
 <BrandingOptions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <LoginDisclaimer>{{ media_jellyfin_login_disclaimer | e }}</LoginDisclaimer>
-  <CustomCss>{{ query('ansible.builtin.file', *media_jellyfin_custom_css_files) | join('\n') | e }}</CustomCss>
+{% set css_paths = media_jellyfin_cinema_files | map(attribute='name') | map('regex_replace', '^', media_jellyfin_cinema_cache ~ '/') | list %}
+  <CustomCss>{{ query('ansible.builtin.file', *css_paths) | join('\n') | e }}</CustomCss>
   <SplashscreenEnabled>{{ media_jellyfin_splashscreen_enabled | bool | lower }}</SplashscreenEnabled>
 </BrandingOptions>
