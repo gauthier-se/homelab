@@ -28,4 +28,4 @@ media_arr_flaresolverr_image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
 # it belongs with Traefik and Authentik in the "pin it and bump it on purpose"
 # group rather than with the *arr apps. Bump this line, replay the role, check
 # `requests.` still answers. Releases: github.com/seerr-team/seerr/releases
-media_arr_seerr_image: ghcr.io/seerr-team/seerr:v3.4.1
+media_arr_seerr_image: ghcr.io/seerr-team/seerr:v3.5.0
