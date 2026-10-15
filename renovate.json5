@@ -14,10 +14,19 @@
   extends: ['config:recommended'],
   timezone: 'Europe/Paris',
 
-  // Monday before 07:00, so a PR is waiting at the start of the week instead of
-  // arriving mid-evening.
-  schedule: ['* 0-6 * * 1'],
+  // Monday and Tuesday, any hour, so PRs land at the start of the week.
+  //
+  // ⚠️ This used to be Monday before 07:00, and it never fired. The hosted app
+  // runs this repository a few times a day at best, at hours of its choosing,
+  // and four Mondays in a row it missed the seven-hour window: from 2026-09-18
+  // to 2026-10-15 it opened no PR at all while nineteen updates sat in the
+  // dashboard as "awaiting schedule", Traefik security fixes among them. A
+  // window narrower than the gap between runs is a watcher that never looks.
+  schedule: ['* * * * 1,2'],
   prConcurrentLimit: 5,
+  // The concurrent limit above is the throttle that matters. The default of two
+  // PRs an hour, on top of a few runs a week, would let the backlog grow.
+  prHourlyLimit: 0,
   labels: ['dependencies'],
   commitMessagePrefix: 'chore(deps):',
 
