@@ -82,3 +82,16 @@ proxmox_host_disk_absolute_floors:
 #
 # A full pass is about 7 minutes over 311 GB, so weekly costs nothing.
 proxmox_host_verify_oncalendar: "Sun 06:00"
+
+# --- Unattended security upgrades -------------------------------------------
+#
+# The guests get these from the common role; the node never did, and on
+# 2026-10-15 it had gone seven weeks without a single security fix while every
+# LXC was current. Narrower than on the guests on purpose: Debian's stock
+# configuration also takes point-release updates (label=Debian), and on the
+# node those stay a decision made in front of the machine, like the Proxmox
+# packages and the kernel, which come from origin=Proxmox and are never matched.
+proxmox_host_unattended_enabled: true
+proxmox_host_unattended_origins:
+  - "origin=Debian,codename=${distro_codename}-security,label=Debian-Security"
+  - "origin=Debian,codename=${distro_codename},label=Debian-Security"

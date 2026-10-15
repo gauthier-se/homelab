@@ -155,3 +155,46 @@
       loop:
         - disk-alert.timer
         - backup-verify.timer
+
+- name: Unattended security upgrades
+  when: proxmox_host_unattended_enabled | bool
+  block:
+    - name: Install unattended-upgrades
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      register: proxmox_host_unattended_install
+
+    # What the package's own postinst writes when its debconf answer is yes.
+    # Written here so the switch is in the repository, not in a debconf
+    # database nobody reads.
+    - name: Turn on the daily list refresh and upgrade run
+      ansible.builtin.copy:
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Restrict unattended upgrades to Debian security
+      ansible.builtin.template:
+        src: unattended-upgrades.conf.j2
+        dest: /etc/apt/apt.conf.d/51homelab-unattended-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+
+    # The service only finishes an interrupted run at shutdown; the daily work
+    # is apt-daily-upgrade.timer, which the node already has enabled.
+    # Skipped only by a check run that would install the package: the unit does
+    # not exist yet, and failing there would stop `--check` short of the rest.
+    - name: Ensure the unattended-upgrades service is running
+      ansible.builtin.systemd_service:
+        name: unattended-upgrades
+        enabled: true
+        state: started
+      when: not (ansible_check_mode and proxmox_host_unattended_install is changed)

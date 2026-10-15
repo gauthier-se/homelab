@@ -1,0 +1,16 @@
+// {{ ansible_managed }}
+//
+// Loaded after 50unattended-upgrades. APT appends list entries across files,
+// so the stock origins (Debian point releases included) are cleared first,
+// otherwise this file would only add to them.
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+{% for origin in proxmox_host_unattended_origins %}
+        "{{ origin }}";
+{% endfor %}
+};
+
+// A library update leaves running daemons on the old copy until they restart.
+// Rebooting the node takes every guest down with it, so that stays manual:
+// /var/run/reboot-required is the signal, and the monthly pass reads it.
+Unattended-Upgrade::Automatic-Reboot "false";
