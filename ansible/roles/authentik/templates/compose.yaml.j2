@@ -22,7 +22,7 @@ services:
     # ⚠️ Not `redis:alpine`, which floats across majors: a `compose pull` could
     # land a new Redis major on the identity provider with no line changing
     # anywhere.
-    image: docker.io/library/redis:8.8.1-alpine
+    image: docker.io/library/redis:8.10.2-alpine
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
