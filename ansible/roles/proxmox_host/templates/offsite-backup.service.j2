@@ -15,6 +15,10 @@ ExecStart=/usr/local/bin/offsite-backup.sh
 # repository and is billed as Class B operations, for data that never changes.
 Environment=RESTIC_CACHE_DIR={{ proxmox_host_offsite_cache_dir }}
 CacheDirectory=restic
+# systemd applies this mode to the directory at every start, 0755 unless told
+# otherwise, which silently undid the 0700 the role sets: every night's run
+# turned the next `--check` into a reported change.
+CacheDirectoryMode=0700
 # The snapshots and mounts are torn down by a trap, but a hard kill skips traps,
 # so the next run clears whatever is left rather than trusting this.
 TimeoutStartSec=4h
