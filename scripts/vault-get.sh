@@ -5,8 +5,8 @@
 # would be the wrong trade. This does the same thing with curl, using the same
 # read-only token every play uses.
 #
-#   ./scripts/vault-get.sh freshrss
-#   ./scripts/vault-get.sh freshrss | jq -r .admin_api_password
+#   ./scripts/vault-get.sh linkding
+#   ./scripts/vault-get.sh linkding | jq -r .admin_email
 #
 # curl and jq only, on purpose: no python3, so this runs in a plain shell. The
 # moment you reach for it is usually the moment something is broken and you are

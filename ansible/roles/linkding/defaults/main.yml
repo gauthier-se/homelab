@@ -27,11 +27,10 @@ linkding_port: 9090
 linkding_csrf_trusted_origins: "https://{{ linkding_host }}"
 
 # --- SSO -------------------------------------------------------------------
-# Authentik authenticates the web interface natively, not by forward-auth, for
-# the same reason as FreshRSS but by a different mechanism: SSO here is Django
-# middleware, and the REST API authenticates on a `Authorization: Token` header
-# that never touches it. Forward-auth would sit in front of both and break the
-# browser extension.
+# Authentik authenticates the web interface natively, not by forward-auth: SSO
+# here is Django middleware, and the REST API authenticates on a
+# `Authorization: Token` header that never touches it. Forward-auth would sit in
+# front of both and break the browser extension.
 linkding_oidc_enabled: true
 linkding_oidc_client_id: linkding
 # mozilla-django-oidc wants the four endpoints spelled out, not a discovery

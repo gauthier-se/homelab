@@ -49,12 +49,10 @@ traefik_services:
   # lab. Widgets are unaffected: it reaches Uptime Kuma container-to-container.
   - { name: dash, url: "http://10.10.20.14:3000", auth: true }
   - { name: status, url: "http://10.10.20.14:3001", auth: true }
-  # OIDC against Authentik instead of forward-auth, because both keep an API
-  # outside the SSO boundary and forward-auth would put a login redirect in
-  # front of it. FreshRSS splits by Apache directory (`p/i/` protected,
-  # `p/api/` not); Linkding splits by Django middleware (sessions for the web
+  # OIDC against Authentik instead of forward-auth, because Linkding keeps an
+  # API outside the SSO boundary and forward-auth would put a login redirect in
+  # front of it. It splits by Django middleware (sessions for the web
   # interface, `Authorization: Token` for /api/, which never reaches it).
-  - { name: rss, url: "http://10.10.20.15:8080" }
   - { name: links, url: "http://10.10.20.18:9090" }
   # An API with no interactive login: the client is a plugin, not a browser.
   # CouchDB's own `require_valid_user` is the authentication, and CORS for

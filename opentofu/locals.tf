@@ -191,24 +191,8 @@ locals {
 
     # --- Servers / Apps (VLAN 20), personal services ---
     # Neither depends on the NAS: a few hundred MB each, on local NVMe.
-    freshrss = {
-      vm_id        = 215
-      description  = "FreshRSS + PostgreSQL, RSS reader (Docker)"
-      vlan_id      = 20
-      ipv4_address = "10.10.20.15/24"
-      ipv4_gateway = local.gateways.servers
-      nameservers  = [local.gateways.servers]
-      cores        = 2
-      memory       = 1536
-      # 12, not 8: the Debian image (mod_php + mod_auth_openidc, ~700 MB) and
-      # PostgreSQL both live here, and a `compose pull` holds the new images
-      # alongside the old ones until the prune.
-      disk_size   = 12
-      nesting     = true
-      keyctl      = true
-      start_order = 3
-      tags        = ["servers", "personal", "freshrss"]
-    }
+    #
+    # 215 / 10.10.20.15 is free: FreshRSS lived there until 21/10/2026.
     obsidian-sync = {
       vm_id        = 216
       description  = "CouchDB, obsidian-livesync backend (Docker)"
@@ -245,8 +229,8 @@ locals {
       # worker, and the database is SQLite rather than a second PostgreSQL. The
       # measured resting set is a few hundred MB, so this is headroom, not need.
       memory = 1024
-      # 8 is enough here where FreshRSS needed 12: one image of ~400 MB and no
-      # database server beside it. What grows is data/, which holds favicons and
+      # 8 is enough: one image of ~400 MB and no database server beside it.
+      # What grows is data/, which holds favicons and
       # link previews: small files, but one per bookmark.
       disk_size   = 8
       nesting     = true

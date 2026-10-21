@@ -44,8 +44,6 @@ all:
           ansible_host: 10.10.20.14
     personal:
       hosts:
-        freshrss:
-          ansible_host: 10.10.20.15
         obsidian-sync:
           ansible_host: 10.10.20.16
         linkding:

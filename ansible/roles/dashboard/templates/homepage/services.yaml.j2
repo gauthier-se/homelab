@@ -114,20 +114,11 @@
 {% endif %}
 
 - Perso:
-    - FreshRSS:
-        icon: freshrss.png
-        href: https://rss.{{ homelab_domain }}
-        # No widget: Homepage's freshrss widget authenticates with the account
-        # password, and this instance signs in through Authentik, so there is no
-        # such password to hand it.
-        description: RSS reader - SSO on the web, Google Reader API left open
-        siteMonitor: {{ b.freshrss }}
-
     - Linkding:
         icon: linkding.png
         href: https://links.{{ homelab_domain }}
-        # No widget, and unlike FreshRSS not for want of a credential: Homepage
-        # ships widgets for Karakeep and Linkwarden but has none for Linkding.
+        # No widget, and not for want of a credential: Homepage ships widgets
+        # for Karakeep and Linkwarden but has none for Linkding.
         # A count of bookmarks is not worth a customapi block and a second API
         # token to keep in the vault.
         # No colon in an unquoted description. A `:` followed by a space makes

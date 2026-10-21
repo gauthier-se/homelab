@@ -24,15 +24,6 @@
     mode: "0644"
   notify: Restart authentik
 
-- name: Deploy the FreshRSS OIDC blueprint
-  ansible.builtin.template:
-    src: oidc-freshrss.yaml.j2
-    dest: /opt/authentik/blueprints/oidc-freshrss.yaml
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Restart authentik
-
 - name: Deploy the Linkding OIDC blueprint
   ansible.builtin.template:
     src: oidc-linkding.yaml.j2

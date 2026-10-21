@@ -87,16 +87,6 @@
   roles:
     - role: samba
 
-# After the SSO play above, not before: FreshRSS
-# authenticates against Authentik directly, so its provider has to exist.
-- name: RSS reader
-  hosts: freshrss
-  become: true
-  tags: personal
-  roles:
-    - role: docker
-    - role: freshrss
-
 - name: Obsidian sync backend
   hosts: obsidian-sync
   become: true
@@ -105,8 +95,9 @@
     - role: docker
     - role: obsidian_sync
 
-# After the SSO play for the same reason as FreshRSS: its provider has to exist
-# before the first sign-in, and the role's reconcile step assumes the account
+# After the SSO play above, not before: Linkding authenticates against Authentik
+# directly, so its provider has to exist before the first sign-in, and the
+# role's reconcile step assumes the account
 # the container creates is the one Authentik will resolve to.
 - name: Bookmark manager
   hosts: linkding

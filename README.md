@@ -68,7 +68,6 @@ complete replay reports zero changes today.
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/samba-server.png" width="18" align="top"> | **Samba** | SMB shares onto the 18 TB disk |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png" width="18" align="top"> | **Homepage** | Landing page, generated from the proxy's route list |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="18" align="top"> | **Uptime Kuma** | Availability history |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/freshrss.png" width="18" align="top"> | **FreshRSS** | RSS reader, OIDC against Authentik |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/linkding.png" width="18" align="top"> | **Linkding** | Bookmarks, OIDC against Authentik |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/couchdb.png" width="18" align="top"> | **CouchDB** | obsidian-livesync backend |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="18" align="top"> | **Home Assistant** | Home automation, Matter over Thread |

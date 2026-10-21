@@ -36,13 +36,12 @@ service ports applications actually need, and it never initiates outward.
 | 212 | `qbittorrent` | `10.10.20.12` | qBittorrent behind a gluetun VPN kill-switch, plus cross-seed | 2 / 2 GB |
 | 213 | `samba` | `10.10.20.13` | SMB shares onto the 18 TB disk | 2 / 512 MB |
 | 214 | `dashboard` | `10.10.20.14` | Homepage and Uptime Kuma | 2 / 2 GB |
-| 215 | `freshrss` | `10.10.20.15` | FreshRSS and PostgreSQL | 2 / 1.5 GB |
 | 216 | `obsidian-sync` | `10.10.20.16` | CouchDB, obsidian-livesync backend | 2 / 1 GB |
 | 218 | `linkding` | `10.10.20.18` | Linkding, SQLite | 2 / 1 GB |
 | 220 | `devbox` | `10.10.20.20` | NixOS dev box (VM) | 4 / 8 GB |
 
 217 is reserved and deliberately skipped: renumbering a guest later costs more
-than leaving a gap.
+than leaving a gap. 215 is free since FreshRSS was retired.
 
 ### IoT (VLAN 40)
 
@@ -69,7 +68,6 @@ certificate order.
 |-------|---------|------|
 | `jellyfin` | Jellyfin | open |
 | `requests` | Seerr | open |
-| `rss` | FreshRSS | its own OIDC against Authentik |
 | `links` | Linkding | its own OIDC against Authentik |
 | `obsidian` | CouchDB | none: an API with no interactive login |
 | `radarr` `sonarr` `lidarr` `bazarr` `prowlarr` | \*arr stack | forward-auth |
@@ -83,9 +81,9 @@ Three categories of "open" here, and they are not the same thing:
 
 - **Jellyfin and Seerr** cannot sit behind forward-auth: TV and phone apps
   cannot follow an SSO redirect.
-- **FreshRSS and Linkding** authenticate against Authentik themselves, over
-  OIDC. Putting forward-auth in front of them as well would break the mobile
-  clients that use their APIs, which never see the web login.
+- **Linkding** authenticates against Authentik itself, over OIDC. Putting
+  forward-auth in front of it as well would break the browser extension and
+  the scripts that use its API, which never see the web login.
 - **CouchDB** has no interactive login at all. Its one client is a plugin
   holding a token.
 

@@ -46,7 +46,6 @@ dashboard_backends:
   # The only backend on IoT. Probing it needs the same one-address-one-port
   # Servers → IoT rule the proxy uses; nothing else on that VLAN is reachable.
   homeassistant: "http://10.10.40.15:80"
-  freshrss: "http://10.10.20.15:8080"
   # /_up rather than /: CouchDB is configured with require_valid_user, so the
   # root path answers 401 to an unauthenticated probe. `_up` is the one endpoint
   # exempted from that, and it reports the node state rather than merely that a

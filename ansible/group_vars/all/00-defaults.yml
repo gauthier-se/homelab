@@ -13,13 +13,8 @@ traefik_internal_ip: 10.10.20.2
 acme_email: admin@example.com
 acme_wildcard: "*.{{ homelab_domain }}"
 
-# Global rather than a role default because two hosts have to agree on it: the
-# reader itself uses it as its base URL, and Authentik registers
-# https://<this>/i/oidc/ as the only redirect URI it will hand a code to.
-freshrss_host: "rss.{{ homelab_domain }}"
-
-# Same reason as the line above, and the same two consumers: Linkding builds its
-# CSRF trusted origin from it, and Authentik registers
+# Global rather than a role default because two hosts have to agree on it:
+# Linkding builds its CSRF trusted origin from it, and Authentik registers
 # https://<this>/oidc/callback/ as the only redirect URI it will hand a code to.
 linkding_host: "links.{{ homelab_domain }}"
 

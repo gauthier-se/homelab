@@ -1,11 +1,10 @@
 # {{ ansible_managed }}
 # Linkding authenticates its web interface against Authentik directly, rather
-# than through the forward-auth middleware the admin apps use. Same conclusion
-# as FreshRSS, reached by a different route: here SSO is Django middleware on
-# the session, and the REST API under /api/ authenticates on an
-# `Authorization: Token` header that never reaches it. Forward-auth would sit in
-# front of both and break the browser extension, which is most of the point of
-# a bookmark manager.
+# than through the forward-auth middleware the admin apps use. SSO here is
+# Django middleware on the session, and the REST API under /api/ authenticates
+# on an `Authorization: Token` header that never reaches it. Forward-auth would
+# sit in front of both and break the browser extension, which is most of the
+# point of a bookmark manager.
 #
 # No secret in this file: it is mounted world-readable into the containers, so
 # the client secret comes from the worker's environment instead (`.env`, 0600).
@@ -41,11 +40,9 @@ entries:
       # linkding's urls.py. Strict matching: a redirect URI is where the
       # authorization code is delivered, so it should not be a pattern.
       #
-      # One form, not FreshRSS's two. That instance registers a `:443` variant
-      # because mod_auth_openidc rebuilds the callback from X-Forwarded-Host and
-      # may emit the explicit port; mozilla-django-oidc builds it from Django's
-      # absolute URI instead, and Traefik passes the Host header through
-      # unchanged, so what arrives is exactly this string.
+      # One form, with no `:443` variant: mozilla-django-oidc builds the
+      # callback from Django's absolute URI, and Traefik passes the Host header
+      # through unchanged, so what arrives is exactly this string.
       redirect_uris:
         - matching_mode: strict
           url: "https://{{ linkding_host }}/oidc/callback/"

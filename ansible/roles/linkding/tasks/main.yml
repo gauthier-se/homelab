@@ -17,9 +17,8 @@
 # start on a group-readable data directory, so there is nothing to satisfy, and
 # a directory `root` can traverse is a directory a human can back up and inspect.
 #
-# Same shape as the FreshRSS PostgreSQL directory and the Uptime Kuma one. When
-# a container drops privileges, Ansible has to create the directory as the
-# account that will own it.
+# Same shape as the Uptime Kuma directory. When a container drops privileges,
+# Ansible has to create the directory as the account that will own it.
 - name: Create the Linkding data directory
   ansible.builtin.file:
     path: "{{ linkding_dir }}/data"

@@ -5,8 +5,8 @@
 # diffable while the credentials do not.
 #
 # One service, no database container: Linkding stores everything in a SQLite
-# file under data/, which is the reason this guest is 8 GB and 1 GB of RAM
-# rather than FreshRSS's 12 and 1.5.
+# file under data/, which is the reason this guest gets by on 8 GB of disk and
+# 1 GB of RAM.
 services:
   linkding:
     image: {{ linkding_image }}
@@ -39,7 +39,7 @@ services:
 {% endif %}
 {% if linkding_oidc_enabled %}
       # SSO on the web interface. This is Django middleware, not a rule on a
-      # URL prefix as in FreshRSS's Apache: the REST API under /api/ answers on
+      # URL prefix: the REST API under /api/ answers on
       # an `Authorization: Token` header that never reaches the session layer,
       # so the browser extension and any script keep working regardless.
       LD_ENABLE_OIDC: "True"
