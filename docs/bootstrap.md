@@ -47,18 +47,10 @@ tofu apply
 
 The guest catalogue is [`locals.tf`](../opentofu/locals.tf): one entry per LXC
 carrying its VLAN, address, resources, and any Docker, passthrough or mount it
-needs. `main.tf` is a `for_each` over that catalogue into three modules.
+needs. `main.tf` is a `for_each` over that catalogue into two modules.
 
 The state is local and untracked, and it holds every input in plaintext. Back it
 up somewhere that is not this directory.
-
-If the Home Assistant VM is in scope, stage its image first: OpenTofu cannot,
-because HAOS publishes only an `.xz` and the provider does not decompress that
-format.
-
-```sh
-./scripts/haos-image.sh
-```
 
 ## 3. Baseline every container
 

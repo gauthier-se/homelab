@@ -43,9 +43,6 @@ dashboard_backends:
   bazarr: "http://10.10.20.11:6767"
   prowlarr: "http://10.10.20.11:9696"
   qbittorrent: "http://10.10.20.12:8080"
-  # The only backend on IoT. Probing it needs the same one-address-one-port
-  # Servers → IoT rule the proxy uses; nothing else on that VLAN is reachable.
-  homeassistant: "http://10.10.40.15:80"
   # /_up rather than /: CouchDB is configured with require_valid_user, so the
   # root path answers 401 to an unauthenticated probe. `_up` is the one endpoint
   # exempted from that, and it reports the node state rather than merely that a

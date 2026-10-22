@@ -78,28 +78,3 @@ module "vms" {
   nameservers  = each.value.nameservers
   public_key   = var.vm_public_key
 }
-
-# Home Assistant OS. The image is staged on the node by scripts/haos-image.sh
-# rather than downloaded here: HAOS publishes its qcow2 only as `.xz`, and the
-# provider's decompression covers gz/lzo/zst/bz2 only.
-module "haos_vms" {
-  source   = "./modules/haos-vm"
-  for_each = local.haos_vms
-
-  vm_id       = each.value.vm_id
-  hostname    = each.key
-  description = each.value.description
-  node_name   = var.node_name
-  tags        = each.value.tags
-
-  cores     = try(each.value.cores, 2)
-  memory    = try(each.value.memory, 4096)
-  disk_size = try(each.value.disk_size, 32)
-
-  datastore_id  = var.vm_datastore
-  image_file_id = var.haos_image_file_id
-  start_order   = try(each.value.start_order, 3)
-
-  bridge  = var.bridge
-  vlan_id = each.value.vlan_id
-}

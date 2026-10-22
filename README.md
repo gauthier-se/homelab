@@ -70,7 +70,6 @@ complete replay reports zero changes today.
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="18" align="top"> | **Uptime Kuma** | Availability history |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/linkding.png" width="18" align="top"> | **Linkding** | Bookmarks, OIDC against Authentik |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/couchdb.png" width="18" align="top"> | **CouchDB** | obsidian-livesync backend |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="18" align="top"> | **Home Assistant** | Home automation, Matter over Thread |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="18" align="top"> | **UniFi** | Network controller |
 
 ### Planned
@@ -118,7 +117,7 @@ flowchart TD
 ## Layout
 
 ```
-opentofu/   VM and LXC provisioning: a guest catalogue plus three modules
+opentofu/   VM and LXC provisioning: a guest catalogue plus two modules
 ansible/    configuration: one role per service, one playbook
 scripts/    the few things neither tool can do
 docs/       architecture, inventory, bootstrap

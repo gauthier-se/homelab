@@ -98,21 +98,6 @@
         description: Secrets and private PKI, reseals on restart
         siteMonitor: {{ b.openbao }}
 
-- Home:
-    - Home Assistant:
-        icon: home-assistant.png
-        href: https://ha.{{ homelab_domain }}
-        # The only card whose backend is on IoT, and the only one that fronts
-        # hardware rather than software: lights, remotes and the Thread mesh.
-        description: Home automation - Matter/Thread through the Apple TV
-        siteMonitor: {{ b.homeassistant }}
-{% if 'homeassistant_token' in s %}
-        widget:
-          type: homeassistant
-          url: {{ b.homeassistant }}
-          key: {{ var('homeassistant_token') }}
-{% endif %}
-
 - Perso:
     - Linkding:
         icon: linkding.png

@@ -60,12 +60,6 @@ traefik_services:
   - { name: obsidian, url: "http://10.10.20.16:5984" }
   - { name: auth, url: "http://10.10.25.11:9000" }
   - { name: bao, url: "https://10.10.25.10:8200", auth: true }
-  # ⚠️ Port 80, not the customary 8123: the supervisor rewrites its stored port
-  # on every core restart, so 8123 does not stick. `strip_xff` removes
-  # X-Forwarded-For, without which HA answers 400 to everything this proxy sends
-  # it, and the same supervisor ignores the `http.trusted_proxies` block that
-  # would normally fix that. No SSO, same reason as Jellyfin.
-  - { name: ha, url: "http://10.10.40.15:80", strip_xff: true }
   # Public names served internally too: without these, a device on the LAN using
   # the public URL leaves through the WAN to reach a machine two metres away.
   - { name: jellyfin-public, host: "{{ public_jellyfin_host }}", url: "http://10.10.20.10:8096" }

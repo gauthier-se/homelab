@@ -64,18 +64,6 @@ variable "seed_image_url" {
   default     = "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
 }
 
-variable "haos_image_file_id" {
-  description = <<-EOT
-    Volume ID of the Home Assistant OS disk image, staged on the node by
-    scripts/haos-image.sh. Not downloaded by OpenTofu: HAOS publishes its qcow2
-    only as `.xz`, which the provider cannot decompress (gz/lzo/zst/bz2 only).
-    The `.img` extension is a rename of a real qcow2, PVE only accepts disk
-    images on a directory store as `iso` content with an .img/.iso suffix.
-  EOT
-  type        = string
-  default     = "local:iso/haos_ova-18.2.img"
-}
-
 variable "vm_public_key" {
   description = "SSH public key authorized for root on the seed image, the workstation key that runs nixos-anywhere, not the Ansible one: the install is driven by hand, and the installed system never reads this key again."
   type        = string

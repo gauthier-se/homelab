@@ -43,12 +43,6 @@ service ports applications actually need, and it never initiates outward.
 217 is reserved and deliberately skipped: renumbering a guest later costs more
 than leaving a gap. 215 is free since FreshRSS was retired.
 
-### IoT (VLAN 40)
-
-| ID | Guest | Runs | CPU / RAM |
-|----|-------|------|-----------|
-| 230 | `homeassistant` | Home Assistant OS (VM), Matter controller | 2 / 4 GB |
-
 ### DMZ (VLAN 60)
 
 | ID | Guest | Address | Runs | CPU / RAM |
@@ -75,7 +69,6 @@ certificate order.
 | `dash` `status` | Homepage, Uptime Kuma | forward-auth |
 | `bao` | OpenBao UI | forward-auth |
 | `auth` | Authentik | it is the identity provider |
-| `ha` | Home Assistant | open, X-Forwarded-For stripped |
 
 Three categories of "open" here, and they are not the same thing:
 
@@ -90,11 +83,11 @@ Three categories of "open" here, and they are not the same thing:
 No `unifi` route, on purpose: the controller is on Management, and the matrix
 denies Servers to Management. Reach it directly or over the tailnet.
 
-## The two self-configuring guests
+## The self-configuring guest
 
-`devbox` and `homeassistant` are VMs, not LXCs, and neither is in the Ansible
-inventory. Neither has apt or general-purpose SSH; both install and configure
-themselves. The reasoning is in [architecture.md](architecture.md).
+`devbox` is a VM, not an LXC, and is not in the Ansible inventory. It has no apt
+or general-purpose SSH; it installs and configures itself. The reasoning is in
+[architecture.md](architecture.md).
 
 ## Not built yet
 

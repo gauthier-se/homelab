@@ -277,27 +277,4 @@ locals {
       tags        = ["servers", "dev", "nixos"]
     }
   }
-
-  # Home Assistant OS. Its own map rather than an entry in `vms`: that module
-  # seeds a cloud image and feeds it cloud-init, neither of which applies here.
-  #
-  # On IoT (40) and not Servers (20), the only VLAN placement that works. Thread
-  # border routers advertise the mesh prefix by ICMPv6 RA on their own link, and
-  # RAs do not cross a router, so a guest anywhere else has no route to the Matter
-  # devices no matter how much mDNS is reflected. It is also where every current
-  # and future smart device already lives. No cloud-init, no Ansible: HAOS owns
-  # its filesystem and configures itself.
-  haos_vms = {
-    homeassistant = {
-      vm_id       = 230
-      description = "Home Assistant OS - home automation, Matter controller (IoT VLAN). Configured from the HAOS UI, not by Ansible or cloud-init"
-      vlan_id     = 40
-      # Address is set inside HAOS, not here: 10.10.40.15/24 via 10.10.40.1.
-      cores       = 2
-      memory      = 4096
-      disk_size   = 32
-      start_order = 3
-      tags        = ["iot", "homeassistant", "domotique"]
-    }
-  }
 }

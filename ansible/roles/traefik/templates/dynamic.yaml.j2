@@ -77,23 +77,6 @@ http:
         # Not frameDeny: Jellyfin's web client legitimately uses iframes.
         customFrameOptionsValue: SAMEORIGIN
 
-    # Opt-in per service (`strip_xff: true`), used only by Home Assistant.
-    # HA answers 400 to any request carrying X-Forwarded-For unless its own
-    # `http.trusted_proxies` lists this proxy, and on HAOS the supervisor
-    # ignores that YAML block entirely (verified: correct file, valid syntax,
-    # core restarted, still refused). Removing the header is what makes the
-    # route work at all.
-    #
-    # ⚠️ The cost is real: HA then sees every client as this proxy, so its
-    # IP-based features, the login ban list, `trusted_networks` auth, become
-    # blind. Acceptable here because the only route to it is one firewall rule
-    # from one address, but never apply this to something that authenticates on
-    # IP.
-    strip-forwarded-for:
-      headers:
-        customRequestHeaders:
-          X-Forwarded-For: ""
-
 {% if auth_services %}
     authentik:
       forwardAuth:
@@ -120,7 +103,7 @@ http:
       rule: "Host(`{{ fqdn }}`)"
       entryPoints:
         - websecure
-{% if traefik_crowdsec_enabled or svc.auth | default(false) or svc.harden | default(false) or svc.strip_xff | default(false) %}
+{% if traefik_crowdsec_enabled or svc.auth | default(false) or svc.harden | default(false) %}
       middlewares:
 {# CrowdSec follows the engine, not the route: a decision is about a source
    address and says nothing about which vhost it was heading for. Derived from
@@ -135,10 +118,6 @@ http:
 {% endif %}
 {% if svc.auth | default(false) %}
         - authentik
-{% endif %}
-{# Last, so it strips the header once every other middleware has seen it. #}
-{% if svc.strip_xff | default(false) %}
-        - strip-forwarded-for
 {% endif %}
 {% endif %}
       service: {{ svc.name }}

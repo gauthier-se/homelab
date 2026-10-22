@@ -76,19 +76,14 @@ The public names are deliberately different from the internal ones. A wildcard
 lives on the internal instance only; the public entry point asks per name, since
 a wildcard on the apex would let a compromised DMZ host mint any name under it.
 
-## The two exceptions
+## The exception
 
-Every guest is an LXC managed by Ansible, except two, and both are exceptions
-for the same reason: they configure themselves.
+Every guest is an LXC managed by Ansible, except one, because it configures
+itself.
 
-- **The dev box** is a NixOS VM, seeded from a cloud image and then rewritten by
-  nixos-anywhere. A VM and not an LXC because that installer repartitions a real
-  disk. What it installs lives in a dotfiles flake, not here.
-- **Home Assistant OS** is a VM because the supervised install needs its own
-  init and container runtime, without which the add-ons do not exist. It sits on
-  the IoT VLAN for a physical reason rather than an aesthetic one:
-  Matter-over-Thread border routers announce the mesh prefix by ICMPv6 RA on
-  their own link only, and those do not cross a router.
+**The dev box** is a NixOS VM, seeded from a cloud image and then rewritten by
+nixos-anywhere. A VM and not an LXC because that installer repartitions a real
+disk. What it installs lives in a dotfiles flake, not here.
 
-Neither is in the Ansible inventory. Neither has apt or general-purpose SSH.
-Pointing the `common` role at them would mean nothing.
+It is not in the Ansible inventory and has neither apt nor general-purpose SSH.
+Pointing the `common` role at it would mean nothing.
