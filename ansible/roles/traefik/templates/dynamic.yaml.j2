@@ -74,8 +74,9 @@ http:
         contentTypeNosniff: true
         browserXssFilter: true
         referrerPolicy: strict-origin-when-cross-origin
-        # Not frameDeny: Jellyfin's web client legitimately uses iframes.
-        customFrameOptionsValue: SAMEORIGIN
+        # No X-Frame-Options, not even SAMEORIGIN: the Jellyfin webOS app loads
+        # the server in an iframe from its own origin, and the header makes it
+        # fail with error -27 (ERR_BLOCKED_BY_RESPONSE).
 
 {% if auth_services %}
     authentik:
