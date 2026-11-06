@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly replacement of torrents taken down by the private trackers
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -28,4 +28,12 @@ media_arr_flaresolverr_image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
 # it belongs with Traefik and Authentik in the "pin it and bump it on purpose"
 # group rather than with the *arr apps. Bump this line, replay the role, check
 # `requests.` still answers. Releases: github.com/seerr-team/seerr/releases
-media_arr_seerr_image: ghcr.io/seerr-team/seerr:v3.5.0
+media_arr_seerr_image: ghcr.io/seerr-team/seerr:v3.5.1
+
+# Replaces torrents the private trackers took down (see files/tracker-replace.py).
+# Hourly, a handful of searches per run so the trackers' APIs are not hammered.
+media_arr_tracker_replace_enabled: true
+media_arr_tracker_replace_image: python:3.13.9-slim
+media_arr_tracker_replace_trackers: "c411|v3x"
+media_arr_tracker_replace_max_searches: 10
+media_arr_tracker_replace_qbit_url: "http://{{ hostvars['qbittorrent'].ansible_host }}:8080"

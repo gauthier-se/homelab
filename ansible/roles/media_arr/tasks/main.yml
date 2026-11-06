@@ -24,3 +24,31 @@
     project_src: /opt/arr-stack
     state: present
     remove_orphans: true
+
+- name: Deploy the tracker replacement job
+  ansible.builtin.copy:
+    src: tracker-replace.py
+    dest: /opt/arr-stack/tracker-replace.py
+    owner: root
+    group: root
+    mode: "0644"
+  when: media_arr_tracker_replace_enabled
+
+- name: Deploy the tracker replacement units
+  ansible.builtin.template:
+    src: "tracker-replace.{{ item }}.j2"
+    dest: "/etc/systemd/system/tracker-replace.{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [service, timer]
+  register: media_arr_tracker_replace_units
+  when: media_arr_tracker_replace_enabled
+
+# Started by its timer only: the service itself is a oneshot.
+- name: Enable the tracker replacement timer
+  ansible.builtin.systemd_service:
+    name: tracker-replace.timer
+    enabled: "{{ media_arr_tracker_replace_enabled }}"
+    state: "{{ 'started' if media_arr_tracker_replace_enabled else 'stopped' }}"
+    daemon_reload: "{{ media_arr_tracker_replace_units is changed }}"

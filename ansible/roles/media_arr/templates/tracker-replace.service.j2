@@ -1,0 +1,17 @@
+[Unit]
+Description=Replace torrents taken down by the private trackers
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker run --rm --name tracker-replace --network host \
+  -v /opt/arr-stack:/opt/arr-stack:ro \
+  -v {{ media_arr_media_root }}:{{ media_arr_media_root }}:ro \
+  -v /var/lib/tracker-replace:/var/lib/tracker-replace \
+  -e QBIT_URL={{ media_arr_tracker_replace_qbit_url }} \
+  -e DOWNLOADS={{ media_arr_media_root }}/downloads \
+  -e "TRACKERS={{ media_arr_tracker_replace_trackers }}" \
+  -e MAX_SEARCHES={{ media_arr_tracker_replace_max_searches }} \
+  {{ media_arr_tracker_replace_image }} \
+  python -I /opt/arr-stack/tracker-replace.py --apply
