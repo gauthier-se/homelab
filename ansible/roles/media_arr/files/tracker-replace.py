@@ -13,6 +13,13 @@ upgrade to them. For each such torrent in a *arr category:
   - otherwise: grab the best replacement from the allowed trackers, and delete
     the dead torrent once the replacement has been imported
 
+Two more sweeps, on any torrent of the *arr and cross-seed categories:
+
+  - dead cross-seeds go: they only ever hold a second hardlink
+  - live torrents whose files are no longer in the library (the film was
+    upgraded, or removed from the library) go once they have seeded
+    MIN_SEED_DAYS, so a recent download is never a hit and run
+
 Library files are hardlinks, so deleting a torrent never removes what is in
 the library: Radarr/Sonarr swap that file themselves when the replacement is
 imported.
@@ -33,6 +40,9 @@ ARR_HOST = os.environ.get("ARR_HOST", "127.0.0.1")
 ARR_ROOT = os.environ.get("ARR_ROOT", "/opt/arr-stack")
 QBIT = os.environ["QBIT_URL"]
 DOWNLOADS = os.environ.get("DOWNLOADS", "/mnt/hdd/downloads")
+MEDIA = os.environ.get("MEDIA", "/mnt/hdd/media")
+CROSS_SEED_CATEGORY = os.environ.get("CROSS_SEED_CATEGORY", "cross-seed-link")
+MIN_SEED_DAYS = float(os.environ.get("MIN_SEED_DAYS", "7"))
 STATE = os.environ.get("STATE", "/var/lib/tracker-replace/state.json")
 SSH = os.environ.get("SSH_HOST", "")  # empty = run stat/find locally
 TRACKERS = re.compile(os.environ.get("TRACKERS", "c411|v3x"), re.I)
@@ -146,9 +156,9 @@ def inodes(paths):
     return set(sh(f"stat -c %i {quoted} 2>/dev/null || true").split())
 
 
-def download_inodes():
+def download_inodes(root=DOWNLOADS):
     by_inode = {}
-    for line in sh(f"find {DOWNLOADS} -type f -printf '%i\\t%p\\n'").splitlines():
+    for line in sh(f"find {root} -type f -printf '%i\\t%p\\n'").splitlines():
         ino, _, path = line.partition("\t")
         by_inode.setdefault(ino, []).append(path)
     return by_inode
@@ -206,6 +216,38 @@ def free_bytes():
     return int(sh(f"df -B1 --output=avail {DOWNLOADS} | tail -1"))
 
 
+def queued(apps):
+    ids = set()
+    for app in apps.values():
+        ids |= {r.get("downloadId", "").lower() for r in app.get("queue", pageSize=1000)["records"]}
+    return ids
+
+
+def sweep(torrents, dead, by_inode, apps, report):
+    path_ino = {p: ino for ino, paths in by_inode.items() for p in paths}
+    media = set(download_inodes(MEDIA))
+    busy = queued(apps)
+    cats = {a["category"] for a in APPS.values()} | {CROSS_SEED_CATEGORY}
+    for t in torrents:
+        if t["category"] not in cats or t["progress"] < 1 or t["hash"] in busy:
+            continue
+        if t["hash"] in dead:
+            if t["category"] == CROSS_SEED_CATEGORY:
+                delete_torrent(t["hash"])
+                report["dead cross-seed deleted"].append(t["name"])
+            continue
+        if t["seeding_time"] < MIN_SEED_DAYS * 86400:
+            continue
+        files = torrent_files(t)
+        inos = {path_ino.get(p) for p in files}
+        # a file not found under DOWNLOADS means the scan cannot vouch for it
+        if None in inos or inos & media:
+            continue
+        delete_torrent(t["hash"])
+        report["no longer in the library, deleted"].append(
+            f"{t['name']} ({t['size'] / 1e9:.1f} GB, seeded {t['seeding_time'] / 86400:.0f} days, ratio {t['ratio']:.2f})")
+
+
 def delete_torrent(h):
     if APPLY:
         http(f"{QBIT}/api/v2/torrents/delete", "POST", {"hashes": h, "deleteFiles": "true"}, form=True)
@@ -220,9 +262,11 @@ def main():
     by_inode = download_inodes()
     apps = {n: Arr(n) for n in APPS}
     searches = 0
+    handled = set()
     free = free_bytes() - sum(st.get("size", 0) for st in state.values() if st["status"] == "grabbed")
     report = {"orphan deleted": [], "still seeded elsewhere, dead one deleted": [],
               "replacement grabbed": [], "imported, old one deleted": [],
+              "dead cross-seed deleted": [], "no longer in the library, deleted": [],
               "waiting": [], "given up": [], "unknown": []}
 
     # 1. follow up on replacements already grabbed
@@ -242,6 +286,7 @@ def main():
             r["eventType"] == "downloadFolderImported" for r in app.history(st["newId"]))
         if imported:
             delete_torrent(h)
+            handled.add(h)
             report["imported, old one deleted"].append(f"{st['label']}: {by_hash[h]['name']} -> {st['new']}")
             state.pop(h)
         elif now() - datetime.fromisoformat(st["at"]) > GIVE_UP_AFTER:
@@ -251,7 +296,7 @@ def main():
     # 2. newly dead torrents
     for t in torrents:
         cat = next((n for n, a in APPS.items() if a["category"] == t["category"]), None)
-        if not cat or t["hash"] not in dead:
+        if not cat or t["hash"] not in dead or t["hash"] in handled:
             continue
         st = state.get(t["hash"])
         if st and (st["status"] in ("grabbed", "failed") or now() - datetime.fromisoformat(st["at"]) < RETRY_AFTER):
@@ -298,6 +343,9 @@ def main():
         report["replacement grabbed"].append(
             f"{label}: {t['name']} [{cur}] -> {rel['title']} [{rel.get('customFormatScore')}] "
             f"{rel['size'] / 1e9:.1f} GB via {rel['indexer']}")
+
+    # 3. torrents the library no longer needs
+    sweep([t for t in torrents if t["hash"] not in handled], dead, by_inode, apps, report)
 
     if APPLY:
         os.makedirs(os.path.dirname(STATE), exist_ok=True)

@@ -36,4 +36,6 @@ media_arr_tracker_replace_enabled: true
 media_arr_tracker_replace_image: python:3.13.9-slim
 media_arr_tracker_replace_trackers: "c411|v3x"
 media_arr_tracker_replace_max_searches: 10
+# old torrents whose files left the library go after this much seeding
+media_arr_tracker_replace_min_seed_days: 7
 media_arr_tracker_replace_qbit_url: "http://{{ hostvars['qbittorrent'].ansible_host }}:8080"

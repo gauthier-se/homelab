@@ -13,5 +13,7 @@ ExecStart=/usr/bin/docker run --rm --name tracker-replace --network host \
   -e DOWNLOADS={{ media_arr_media_root }}/downloads \
   -e "TRACKERS={{ media_arr_tracker_replace_trackers }}" \
   -e MAX_SEARCHES={{ media_arr_tracker_replace_max_searches }} \
+  -e MIN_SEED_DAYS={{ media_arr_tracker_replace_min_seed_days }} \
+  -e MEDIA={{ media_arr_media_root }}/media \
   {{ media_arr_tracker_replace_image }} \
   python -I /opt/arr-stack/tracker-replace.py --apply
