@@ -33,6 +33,15 @@
     mode: "0644"
   notify: Restart authentik
 
+- name: Deploy the authentication blueprint
+  ansible.builtin.template:
+    src: authentication.yaml.j2
+    dest: /opt/authentik/blueprints/authentication.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart authentik
+
 - name: Deploy the Authentik compose file
   ansible.builtin.template:
     src: compose.yaml.j2

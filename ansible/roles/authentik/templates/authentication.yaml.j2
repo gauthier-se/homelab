@@ -1,0 +1,76 @@
+# {{ ansible_managed }}
+# Tunes the shipped authentication flow rather than replacing it: a session
+# that survives a browser restart, and a passkey as a first factor so signing
+# in is one touch instead of a username and a password.
+#
+# Only the fields that change are written. A blueprint entry updates the attrs
+# it lists and leaves the rest alone, and the default blueprints list none of
+# these, so their periodic re-apply does not undo them.
+version: 1
+metadata:
+  name: homelab-authentication
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+
+entries:
+  # The stages below belong to the default blueprints. On a virgin database
+  # nothing says those run first, and a missing stage would fail every entry
+  # here. Applying them explicitly removes the race.
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - Authentication flow
+      required: true
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: Default - WebAuthn MFA setup flow
+      required: true
+
+  # The shipped default is `seconds=0`, a session that ends with the browser:
+  # every restart meant signing in again.
+  - model: authentik_stages_user_login.userloginstage
+    identifiers:
+      name: default-authentication-login
+    attrs:
+      session_duration: weeks=1
+
+  # Enrolment. A passkey offered before any username is typed only works if the
+  # credential is discoverable, which the default `preferred` does not
+  # guarantee: a key enrolled without it works as a second factor and never
+  # shows up at the sign-in prompt.
+  - model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+    identifiers:
+      name: default-authenticator-webauthn-setup
+    attrs:
+      resident_key_requirement: required
+      user_verification: required
+
+  # What validates the passkey at sign-in. WebAuthn only, and user verification
+  # required: once the passkey replaces the password it is the whole proof, so
+  # holding the device must not be enough without the PIN or biometric behind it.
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    id: homelab-passkey
+    identifiers:
+      name: homelab-passkey-validation
+    attrs:
+      device_classes:
+        - webauthn
+      webauthn_user_verification: required
+
+  # Offers the passkey on the username prompt. The shipped flow then skips the
+  # password stage (the user already has a backend) and the MFA stage (the
+  # method is `auth_webauthn_pwl`), so nothing else needs to change. The
+  # password stays as the fallback.
+  #
+  # `user_fields` repeats the shipped value, and has to: the serializer
+  # validates the attrs written here on their own, and without it reads "no
+  # user fields and no source" and rejects the entry, failing the blueprint.
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      user_fields:
+        - email
+        - username
+      webauthn_stage: !KeyOf homelab-passkey
