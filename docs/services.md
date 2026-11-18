@@ -51,6 +51,15 @@ box was.
 The DMZ runs the same Traefik role as the internal one, with different inputs:
 no wildcard, no SSO, and a route list of its own. CrowdSec runs in front of it.
 
+### Agents (VLAN 70)
+
+| ID | Guest | Address | Runs | CPU / RAM |
+|----|-------|---------|------|-----------|
+| 270 | `factory` | `10.10.70.10` | NixOS VM: coding agents in per-task dev containers, LifeOS | 4 / 12 GB |
+
+An untrusted segment: it reaches the Internet and nothing else in the lab, and
+the only way in is SSH. Nothing on it holds a lab credential.
+
 ## Routes
 
 Every name resolves to the internal Traefik and exists only inside the network,
@@ -81,9 +90,9 @@ denies Servers to Management. Reach it directly or over the tailnet.
 
 ## The self-configuring guest
 
-None right now. The `nixos-vm` module stays for the next NixOS guest, which
-would sit outside the Ansible inventory and configure itself. The reasoning is
-in [architecture.md](architecture.md).
+`factory` is a VM, not an LXC, and is not in the Ansible inventory: its own
+Nix flake installs and configures it. The reasoning is in
+[architecture.md](architecture.md).
 
 ## Not built yet
 

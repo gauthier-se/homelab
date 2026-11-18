@@ -86,5 +86,5 @@ exception, a guest that configures itself.
 real disk. What it installs lives in a dotfiles flake, not here.
 
 Such a guest stays out of the Ansible inventory: it has no apt, and pointing the
-`common` role at it would mean nothing. None runs today, since the dev box that
-used this path was retired on 2026-11-18.
+`common` role at it would mean nothing. One runs today: the agent factory
+(VM 270), which replaced the dev box on 2026-11-18.

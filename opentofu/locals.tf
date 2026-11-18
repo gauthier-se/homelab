@@ -9,6 +9,7 @@ locals {
     core    = "10.10.25.1"
     iot     = "10.10.40.1"
     dmz     = "10.10.60.1"
+    agents  = "10.10.70.1"
   }
 
   containers = {
@@ -241,8 +242,25 @@ locals {
     }
   }
 
-  # Full VMs, configured by their own Nix flake rather than Ansible. Empty since
-  # the dev box was retired on 2026-11-18: the nixos-vm module and the seed image
-  # stay for the next NixOS guest.
-  vms = {}
+  # Full VMs, configured by their own Nix flake rather than Ansible.
+  vms = {
+    # Agent factory (ADR-0019 in the private docs): unattended coding agents in
+    # per-task containers, on an untrusted VLAN that reaches the Internet and
+    # nothing else. Holds no lab credential and is not an operator station.
+    factory = {
+      vm_id        = 270
+      description  = "NixOS agent factory: per-task dev containers + LifeOS. Config: dotfiles flake #factory, not Ansible"
+      vlan_id      = 70
+      ipv4_address = "10.10.70.10/24"
+      ipv4_gateway = local.gateways.agents
+      nameservers  = [local.gateways.agents]
+      cores        = 4
+      memory       = 12288
+      # Container images, the Nix store with its generations, and one fresh
+      # clone per task.
+      disk_size   = 100
+      start_order = 3
+      tags        = ["agents", "factory", "nixos"]
+    }
+  }
 }
