@@ -38,10 +38,10 @@ service ports applications actually need, and it never initiates outward.
 | 214 | `dashboard` | `10.10.20.14` | Homepage and Uptime Kuma | 2 / 2 GB |
 | 216 | `obsidian-sync` | `10.10.20.16` | CouchDB, obsidian-livesync backend | 2 / 1 GB |
 | 218 | `linkding` | `10.10.20.18` | Linkding, SQLite | 2 / 1 GB |
-| 220 | `devbox` | `10.10.20.20` | NixOS dev box (VM) | 4 / 8 GB |
 
 217 is reserved and deliberately skipped: renumbering a guest later costs more
-than leaving a gap. 215 is free since FreshRSS was retired.
+than leaving a gap. 215 is free since FreshRSS was retired, 220 since the dev
+box was.
 
 ### DMZ (VLAN 60)
 
@@ -85,9 +85,9 @@ denies Servers to Management. Reach it directly or over the tailnet.
 
 ## The self-configuring guest
 
-`devbox` is a VM, not an LXC, and is not in the Ansible inventory. It has no apt
-or general-purpose SSH; it installs and configures itself. The reasoning is in
-[architecture.md](architecture.md).
+None right now. The `nixos-vm` module stays for the next NixOS guest, which
+would sit outside the Ansible inventory and configure itself. The reasoning is
+in [architecture.md](architecture.md).
 
 ## Not built yet
 

@@ -257,24 +257,8 @@ locals {
     }
   }
 
-  # Full VMs. Everything else is an LXC; the dev box is the exception because
-  # NixOS owns its own init and filesystem layout, which a container will not
-  # hand over.
-  vms = {
-    devbox = {
-      vm_id        = 220
-      description  = "NixOS dev box: SSH workspace (nvim/tmux/git/claude). Config: dotfiles flake #devbox, not Ansible"
-      vlan_id      = 20
-      ipv4_address = "10.10.20.20/24"
-      ipv4_gateway = local.gateways.servers
-      nameservers  = [local.gateways.servers]
-      cores        = 4
-      memory       = 8192
-      # Nix keeps every previous generation, and `--build-on remote` builds the
-      # closure here rather than on a Mac that cannot produce x86_64 binaries.
-      disk_size   = 64
-      start_order = 3
-      tags        = ["servers", "dev", "nixos"]
-    }
-  }
+  # Full VMs, configured by their own Nix flake rather than Ansible. Empty since
+  # the dev box was retired on 2026-11-18: the nixos-vm module and the seed image
+  # stay for the next NixOS guest.
+  vms = {}
 }

@@ -7,8 +7,8 @@ terraform {
 }
 
 # A VM seeded from a cloud image and then overwritten by nixos-anywhere.
-# Nothing below describes the installed system, that lives in the dotfiles
-# flake (`#devbox`). A VM and not an LXC because nixos-anywhere installs by
+# Nothing below describes the installed system, that lives in the guest's
+# configuration in the dotfiles flake. A VM and not an LXC because nixos-anywhere installs by
 # repartitioning a real disk, which an LXC does not have. It is deliberately
 # absent from the Ansible inventory: it configures itself.
 resource "proxmox_virtual_environment_vm" "this" {

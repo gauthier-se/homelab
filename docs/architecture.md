@@ -78,12 +78,13 @@ a wildcard on the apex would let a compromised DMZ host mint any name under it.
 
 ## The exception
 
-Every guest is an LXC managed by Ansible, except one, because it configures
-itself.
+Every guest is an LXC managed by Ansible. The catalogue keeps room for one
+exception, a guest that configures itself.
 
-**The dev box** is a NixOS VM, seeded from a cloud image and then rewritten by
-nixos-anywhere. A VM and not an LXC because that installer repartitions a real
-disk. What it installs lives in a dotfiles flake, not here.
+**A NixOS VM**, seeded from a cloud image and then rewritten by nixos-anywhere
+(`modules/nixos-vm`). A VM and not an LXC because that installer repartitions a
+real disk. What it installs lives in a dotfiles flake, not here.
 
-It is not in the Ansible inventory and has neither apt nor general-purpose SSH.
-Pointing the `common` role at it would mean nothing.
+Such a guest stays out of the Ansible inventory: it has no apt, and pointing the
+`common` role at it would mean nothing. None runs today, since the dev box that
+used this path was retired on 2026-11-18.
