@@ -42,7 +42,7 @@
       managerFilePatterns: ['/^ansible/roles/.+/defaults/main\\.yml$/'],
       matchStrings: [
         // `(?:/…)*` and not `+`: Docker Hub official images have no slash
-        // at all (`couchdb:3.5.0`, `postgres:17-alpine`), and requiring one
+        // at all (`postgres:17-alpine`, `python:3.13.9-slim`), and requiring one
         // silently skipped two of them in the first draft of this file.
         '_image:\\s*["\']?(?<depName>[^\\s"\':]+(?::\\d+)?(?:/[^\\s"\':]+)*):(?<currentValue>[^\\s"\']+)["\']?',
       ],
@@ -120,7 +120,6 @@
       matchPackageNames: [
         'postgres',
         'docker.io/library/postgres',
-        'couchdb',
         'mariadb',
       ],
       matchUpdateTypes: ['major'],

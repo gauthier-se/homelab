@@ -190,26 +190,10 @@ locals {
     }
 
     # --- Servers / Apps (VLAN 20), personal services ---
-    # Neither depends on the NAS: a few hundred MB each, on local NVMe.
+    # Linkding does not depend on the NAS: a few hundred MB, on local NVMe.
     #
     # 215 / 10.10.20.15 is free: FreshRSS lived there until 21/10/2026.
-    obsidian-sync = {
-      vm_id        = 216
-      description  = "CouchDB, obsidian-livesync backend (Docker)"
-      vlan_id      = 20
-      ipv4_address = "10.10.20.16/24"
-      ipv4_gateway = local.gateways.servers
-      nameservers  = [local.gateways.servers]
-      cores        = 2
-      memory       = 1024
-      # CouchDB keeps every revision until a compaction runs, so the database
-      # grows with edit history rather than with vault size.
-      disk_size   = 12
-      nesting     = true
-      keyctl      = true
-      start_order = 3
-      tags        = ["servers", "personal", "obsidian"]
-    }
+    # 216 / 10.10.20.16 is free since 2026-11-18.
 
     # 217 / 10.10.20.17 is reserved for a self-hosted application still in
     # development. It joins this catalogue when a release is tagged: building an

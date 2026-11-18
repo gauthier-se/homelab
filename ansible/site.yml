@@ -87,14 +87,6 @@
   roles:
     - role: samba
 
-- name: Obsidian sync backend
-  hosts: obsidian-sync
-  become: true
-  tags: personal
-  roles:
-    - role: docker
-    - role: obsidian_sync
-
 # After the SSO play above, not before: Linkding authenticates against Authentik
 # directly, so its provider has to exist before the first sign-in, and the
 # role's reconcile step assumes the account

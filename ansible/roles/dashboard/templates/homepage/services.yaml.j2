@@ -113,15 +113,6 @@
         description: Bookmarks and links - SSO on the web, API left open
         siteMonitor: {{ b.linkding }}
 
-    - Obsidian:
-        icon: obsidian.png
-        # No href worth opening: CouchDB's only interface is Fauxton, an admin
-        # console for a database whose one client is the Obsidian plugin. The
-        # card exists to answer "is sync alive", which is what breaks.
-        href: https://obsidian.{{ homelab_domain }}/_utils/
-        description: CouchDB - obsidian-livesync backend
-        siteMonitor: {{ b.couchdb }}
-
 - Media:
     - Jellyfin:
         icon: jellyfin.png

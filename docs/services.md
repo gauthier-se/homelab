@@ -36,7 +36,6 @@ service ports applications actually need, and it never initiates outward.
 | 212 | `qbittorrent` | `10.10.20.12` | qBittorrent behind a gluetun VPN kill-switch, plus cross-seed | 2 / 2 GB |
 | 213 | `samba` | `10.10.20.13` | SMB shares onto the 18 TB disk | 2 / 512 MB |
 | 214 | `dashboard` | `10.10.20.14` | Homepage and Uptime Kuma | 2 / 2 GB |
-| 216 | `obsidian-sync` | `10.10.20.16` | CouchDB, obsidian-livesync backend | 2 / 1 GB |
 | 218 | `linkding` | `10.10.20.18` | Linkding, SQLite | 2 / 1 GB |
 
 217 is reserved and deliberately skipped: renumbering a guest later costs more
@@ -63,7 +62,6 @@ certificate order.
 | `jellyfin` | Jellyfin | open |
 | `requests` | Seerr | open |
 | `links` | Linkding | its own OIDC against Authentik |
-| `obsidian` | CouchDB | none: an API with no interactive login |
 | `radarr` `sonarr` `lidarr` `bazarr` `prowlarr` | \*arr stack | forward-auth |
 | `torrents` | qBittorrent | forward-auth |
 | `dash` `status` | Homepage, Uptime Kuma | forward-auth |
@@ -77,8 +75,6 @@ Three categories of "open" here, and they are not the same thing:
 - **Linkding** authenticates against Authentik itself, over OIDC. Putting
   forward-auth in front of it as well would break the browser extension and
   the scripts that use its API, which never see the web login.
-- **CouchDB** has no interactive login at all. Its one client is a plugin
-  holding a token.
 
 No `unifi` route, on purpose: the controller is on Management, and the matrix
 denies Servers to Management. Reach it directly or over the tailnet.

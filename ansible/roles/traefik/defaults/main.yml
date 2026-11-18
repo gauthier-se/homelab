@@ -54,10 +54,6 @@ traefik_services:
   # front of it. It splits by Django middleware (sessions for the web
   # interface, `Authorization: Token` for /api/, which never reaches it).
   - { name: links, url: "http://10.10.20.18:9090" }
-  # An API with no interactive login: the client is a plugin, not a browser.
-  # CouchDB's own `require_valid_user` is the authentication, and CORS for
-  # `app://obsidian.md` is set in the database. Not exposed through the DMZ.
-  - { name: obsidian, url: "http://10.10.20.16:5984" }
   - { name: auth, url: "http://10.10.25.11:9000" }
   - { name: bao, url: "https://10.10.25.10:8200", auth: true }
   # Public names served internally too: without these, a device on the LAN using

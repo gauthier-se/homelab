@@ -113,7 +113,7 @@ Or one layer at a time, which is the same order `site.yml` uses:
 | `dmz` | The public entry point: the same role, different inputs |
 | `media` | Jellyfin, the \*arr stack, the download client behind its VPN |
 | `shares` | Samba |
-| `personal` | The Obsidian sync backend, Linkding |
+| `personal` | Linkding |
 | `dashboard` | Homepage and Uptime Kuma |
 | `unifi` | The UniFi controller |
 

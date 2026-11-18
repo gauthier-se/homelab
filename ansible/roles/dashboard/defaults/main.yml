@@ -43,11 +43,6 @@ dashboard_backends:
   bazarr: "http://10.10.20.11:6767"
   prowlarr: "http://10.10.20.11:9696"
   qbittorrent: "http://10.10.20.12:8080"
-  # /_up rather than /: CouchDB is configured with require_valid_user, so the
-  # root path answers 401 to an unauthenticated probe. `_up` is the one endpoint
-  # exempted from that, and it reports the node state rather than merely that a
-  # port is open.
-  couchdb: "http://10.10.20.16:5984/_up"
   # /health rather than /: the root path is behind the session middleware and
   # answers a redirect to the login page, which proves the web server is up and
   # nothing else. `/health` is the endpoint the image's own healthcheck uses.
@@ -57,7 +52,7 @@ dashboard_backends:
   # (that is where the unseal shares are typed), so the root path answers 307
   # in both states and the dot would stay green through this lab's single
   # most frequent failure. The health endpoint answers 503 when sealed.
-  # Same reasoning as CouchDB above; Uptime Kuma already probes it this way.
+  # Uptime Kuma already probes it this way.
   openbao: "https://10.10.25.10:8200/v1/sys/health"
   # No entry for the internal proxy: it has no card. See services.yaml.j2.
   proxmox: "https://10.10.10.3:8006"
