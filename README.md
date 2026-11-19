@@ -11,7 +11,7 @@ complete replay reports zero changes today.
 
 ## What it is
 
-- **Segmented network.** Seven VLANs by role and trust level, deny by default,
+- **Segmented network.** Eight VLANs by role and trust level, deny by default,
   the admin plane isolated from the data plane.
 - **Everything in code.** No guest is configured by hand. The one machine whose
   install is manual is the hypervisor itself, and even its operational tooling
@@ -43,7 +43,7 @@ complete replay reports zero changes today.
 |---|------|------|
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="18" align="top"> | **Proxmox VE** | Virtualisation. Two independent nodes rather than a cluster |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="18" align="top"> | **OPNsense** | Routing, inter-VLAN firewall, Unbound DNS, Kea DHCP |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale.png" width="18" align="top"> | **Tailscale** | Remote access: subnet router and exit node |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale.png" width="18" align="top"> | **Tailscale** | Remote access: subnet router and exit node, narrowed by the tailnet policy |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opentofu.png" width="18" align="top"> | **OpenTofu** | VM and LXC provisioning, `bpg/proxmox` provider |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/ansible.png" width="18" align="top"> | **Ansible** | Host and service configuration |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nixos.png" width="18" align="top"> | **Nix** | One devshell, same tool versions everywhere |
@@ -70,6 +70,12 @@ complete replay reports zero changes today.
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="18" align="top"> | **Uptime Kuma** | Availability history |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/linkding.png" width="18" align="top"> | **Linkding** | Bookmarks, OIDC against Authentik |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="18" align="top"> | **UniFi** | Network controller |
+
+### Agents
+
+| | Tool | Role |
+|---|------|------|
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/podman.png" width="18" align="top"> | **Agent factory** | A NixOS VM on an untrusted VLAN: coding agents in per-task rootless containers, and a LifeOS assistant. Configured by a dotfiles flake, not Ansible |
 
 ### Planned
 
@@ -98,6 +104,7 @@ flowchart TD
       V40[40 IoT]
       V50[50 Guest]
       V60[60 DMZ]
+      V70[70 Agents]
     end
     OPN -.-> VLANs
     OPN --> TS[[Tailscale<br/>exit node + routes]]

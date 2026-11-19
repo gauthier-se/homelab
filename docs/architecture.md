@@ -14,6 +14,7 @@ DHCP `.100-.199`, reserved `.200-.254`.
 | 40 | IoT | `10.10.40.0/24` | Connected devices, TV, home automation |
 | 50 | Guest | `10.10.50.0/24` | Visitors, internet only |
 | 60 | DMZ | `10.10.60.0/24` | Internet-exposed services, behind their own Traefik |
+| 70 | Agents | `10.10.70.0/24` | **Untrusted**: unattended coding agents, internet only |
 
 The guest catalogue in [`opentofu/locals.tf`](../opentofu/locals.tf) is the
 authority on which address belongs to what.
@@ -31,18 +32,19 @@ live in Servers or Core depending on sensitivity.
 Deny by default. Every allowance is explicit. Rows are the source, columns the
 destination.
 
-| Source \ Dest | Mgmt | Core | Servers | Trusted | IoT | Guest | DMZ | Internet |
-|---------------|:----:|:----:|:-------:|:-------:|:---:|:-----:|:---:|:--------:|
-| **Management** | yes | yes | yes | yes | yes | yes | yes | yes |
-| **Core** | no | yes | no | no | no | no | no | yes |
-| **Servers** | cond. | cond. | yes | no | no | no | no | yes |
-| **Trusted** | cond. | cond. | yes | yes | yes | no | yes | yes |
-| **IoT** | no | no | cond. | no | yes | no | no | cond. |
-| **Guest** | no | no | no | no | no | yes | no | yes |
-| **DMZ** | no | no | cond. | no | no | no | yes | yes |
-| **Internet (inbound)** | no | no | no | no | no | no | 80/443 | - |
+| Source \ Dest | Mgmt | Core | Servers | Trusted | IoT | Guest | DMZ | Agents | Internet |
+|---------------|:----:|:----:|:-------:|:-------:|:---:|:-----:|:---:|:------:|:--------:|
+| **Management** | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| **Core** | no | yes | no | no | no | no | no | no | yes |
+| **Servers** | cond. | cond. | yes | no | no | no | no | no | yes |
+| **Trusted** | cond. | cond. | yes | yes | yes | no | yes | SSH | yes |
+| **IoT** | no | no | cond. | no | yes | no | no | no | cond. |
+| **Guest** | no | no | no | no | no | yes | no | no | yes |
+| **DMZ** | no | no | cond. | no | no | no | yes | no | yes |
+| **Agents** | no | no | no | no | no | no | no | yes | yes |
+| **Internet (inbound)** | no | no | no | no | no | no | 80/443 | no | - |
 
-Three conditional allowances carry the whole design:
+Four conditional allowances carry the whole design:
 
 - **Servers to Core** is limited to the service ports applications actually
   need: OpenBao `8200`, Authentik `443/9000`. Core never initiates towards
@@ -54,6 +56,22 @@ Three conditional allowances carry the whole design:
   credential behind those three is read-only by construction.
 - **Internet inbound** reaches the DMZ on 80/443 and stops there. The DMZ runs
   its own Traefik, with the wildcard and the SSO removed.
+- **Trusted to Agents** is SSH and nothing else. The Agents segment runs coding
+  agents unattended, so it is treated like an exposed service: it reaches the
+  internet and nothing in the lab, private addresses refused and logged, the
+  firewall's own public and tailnet addresses refused too.
+
+Two things the matrix does not show:
+
+- **The tailnet is not filtered here.** OPNsense's Tailscale rewrites the source
+  of subnet-routed traffic to the firewall's own address, so rules on the
+  Tailscale interface never see the original device. What each device may reach
+  is set in the tailnet policy instead: Core only for the operator's laptop, on
+  SSH and the OpenBao API; Agents on SSH only.
+- **Client segments stay away from the firewall itself.** Guest, IoT, DMZ and
+  Agents refuse every private address and then allow the internet, which would
+  otherwise leave the firewall's WAN and tailnet addresses, and its web GUI,
+  reachable. Explicit rules refuse both.
 
 Rules are written per destination address and port, the way the DMZ rules
 already were, never as a host-wide or segment-wide opening. The next service
