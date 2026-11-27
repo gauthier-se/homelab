@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.15"
       # --include-deps exposes the dependencies' executables, ansible-galaxy
       # among them, which ansible-core provides.
       - run: pipx install --include-deps ansible-lint
