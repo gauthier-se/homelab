@@ -42,7 +42,7 @@ media_qbittorrent_server_countries: "{{ media_qbittorrent_vault.server_countries
 # loopback too. From the bridge, gluetun's firewall would block the hook, and
 # opening it means FIREWALL_OUTBOUND_SUBNETS on the container guarding the VPN.
 # Its tracker searches leave through the tunnel as a side effect.
-media_qbittorrent_cross_seed_image: ghcr.io/cross-seed/cross-seed:6.13.7
+media_qbittorrent_cross_seed_image: ghcr.io/cross-seed/cross-seed:6.13.9
 
 # Hardlinks cannot cross filesystems, so the link directory has to live on the
 # same disk as the data it links to. /mnt/hdd is one ext4 volume.
