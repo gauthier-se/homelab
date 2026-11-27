@@ -22,6 +22,9 @@
               # hvac backs community.hashi_vault's lookups: without it the roles
               # cannot read their secrets out of OpenBao at play time.
               python3Packages.hvac
+              # The vault reseals on every restart of its container or the node,
+              # and unsealing needs the CLI on the operator station.
+              openbao
             ];
 
             # On macOS, Ansible's forked workers crash ("A worker was found in a
@@ -57,6 +60,13 @@
                 if [ -n "''${ttl:-}" ] && [ "$ttl" -lt 864000 ] 2>/dev/null; then
                   echo "⚠️  OpenBao ansible token: $((ttl / 86400)) days left - ./scripts/vault-renew-tokens.sh" >&2
                 fi
+              fi
+
+              # So that `bao operator unseal` and `bao status` work as typed,
+              # with the certificate verified against the homelab root CA.
+              export BAO_ADDR="''${BAO_ADDR:-https://10.10.25.10:8200}"
+              if [ -r "$HOMELAB_SECRETS/homelab-root-ca.pem" ]; then
+                export BAO_CACERT="''${BAO_CACERT:-$HOMELAB_SECRETS/homelab-root-ca.pem}"
               fi
             '';
           };
