@@ -54,7 +54,7 @@ jobs:
         working-directory: opentofu
     steps:
       - uses: actions/checkout@v4
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
       - run: tofu fmt -check -recursive -diff
       - run: tofu init -backend=false
       - run: tofu validate
