@@ -33,7 +33,7 @@ media_arr_seerr_image: ghcr.io/seerr-team/seerr:v3.5.2
 # Replaces torrents the private trackers took down (see files/tracker-replace.py).
 # Hourly, a handful of searches per run so the trackers' APIs are not hammered.
 media_arr_tracker_replace_enabled: true
-media_arr_tracker_replace_image: python:3.13.18-slim
+media_arr_tracker_replace_image: python:3.15.2-slim
 media_arr_tracker_replace_trackers: "c411|v3x"
 media_arr_tracker_replace_max_searches: 10
 # old torrents whose files left the library go after this much seeding
