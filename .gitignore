@@ -21,6 +21,8 @@ crash.*.log
 ansible/inventory/hosts.yml
 ansible/group_vars/all/99-local.yml
 ansible/collections/
+# ansible-lint 25.8+ cache, recreated at the repository root on every run
+.ansible/
 *.retry
 .vault_pass*
 
