@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -336,7 +337,18 @@ def main():
             continue
         free -= rel["size"]
         if APPLY:
-            app.post("release", {"guid": rel["guid"], "indexerId": rel["indexerId"]})
+            # A refused grab must not end the run: the state is only written at
+            # the end, so the same grab would fail every hour and the sweep never
+            # run. qBittorrent answers 409 when the torrent is already there,
+            # e.g. a replacement whose import failed: retried after RETRY_AFTER.
+            try:
+                app.post("release", {"guid": rel["guid"], "indexerId": rel["indexerId"]})
+            except urllib.error.HTTPError as e:
+                free += rel["size"]
+                state[t["hash"]] = {"status": "waiting", "app": cat, "target": target, "label": label,
+                                    "at": now().isoformat()}
+                report["waiting"].append(f"{label}: {rel['title']} (grab refused, HTTP {e.code})")
+                continue
             time.sleep(2)
         state[t["hash"]] = {"status": "grabbed", "app": cat, "target": target, "label": label,
                             "new": rel["title"], "size": rel["size"], "at": now().isoformat()}
