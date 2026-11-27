@@ -20,7 +20,7 @@ jobs:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -34,7 +34,7 @@ jobs:
       opentofu: ${{ steps.filter.outputs.opentofu }}
       ansible: ${{ steps.filter.outputs.ansible }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -53,7 +53,7 @@ jobs:
       run:
         working-directory: opentofu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: opentofu/setup-opentofu@v1
       - run: tofu fmt -check -recursive -diff
       - run: tofu init -backend=false
@@ -65,7 +65,7 @@ jobs:
     if: needs.changes.outputs.ansible == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
