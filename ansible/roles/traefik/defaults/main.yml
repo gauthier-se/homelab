@@ -68,7 +68,7 @@ traefik_access_log_keep_days: 14
 # into a 403 at the edge.
 traefik_crowdsec_enabled: false
 # renovate: datasource=github-releases depName=maxlerebourg/crowdsec-bouncer-traefik-plugin
-traefik_crowdsec_plugin_version: "v1.7.1"
+traefik_crowdsec_plugin_version: "v1.8.2"
 traefik_crowdsec_lapi_host: "127.0.0.1:8080"
 
 # ⚠️ Vendored on disk and loaded as a *local* plugin. A remote plugin is a
