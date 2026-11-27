@@ -20,10 +20,10 @@ jobs:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -34,15 +34,20 @@ jobs:
       opentofu: ${{ steps.filter.outputs.opentofu }}
       ansible: ${{ steps.filter.outputs.ansible }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
+          # The workflow itself belongs to both filters: an action bump
+          # otherwise skips the very jobs that run the new action, and CI goes
+          # green without having used it.
           filters: |
             opentofu:
               - 'opentofu/**'
+              - '.github/workflows/**'
             ansible:
               - 'ansible/**'
+              - '.github/workflows/**'
 
   opentofu:
     name: OpenTofu fmt + validate
@@ -53,8 +58,8 @@ jobs:
       run:
         working-directory: opentofu
     steps:
-      - uses: actions/checkout@v4
-      - uses: opentofu/setup-opentofu@v1
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2
       - run: tofu fmt -check -recursive -diff
       - run: tofu init -backend=false
       - run: tofu validate
@@ -65,10 +70,10 @@ jobs:
     if: needs.changes.outputs.ansible == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.15"
       # --include-deps exposes the dependencies' executables, ansible-galaxy
       # among them, which ansible-core provides.
       - run: pipx install --include-deps ansible-lint
