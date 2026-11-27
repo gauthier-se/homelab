@@ -18,7 +18,9 @@ Two more sweeps, on any torrent of the *arr and cross-seed categories:
   - dead cross-seeds go: they only ever hold a second hardlink
   - live torrents whose files are no longer in the library (the film was
     upgraded, or removed from the library) go once they have seeded
-    MIN_SEED_DAYS, so a recent download is never a hit and run
+    MIN_SEED_DAYS, so a recent download is never a hit and run. A download
+    in a *arr category that was never imported is kept: it is not "no longer"
+    in the library, it never got there, and may be the only copy
 
 Library files are hardlinks, so deleting a torrent never removes what is in
 the library: Radarr/Sonarr swap that file themselves when the replacement is
@@ -244,6 +246,15 @@ def sweep(torrents, dead, by_inode, apps, report):
         # a file not found under DOWNLOADS means the scan cannot vouch for it
         if None in inos or inos & media:
             continue
+        # An import that failed (a file name the *arr cannot parse, a permission
+        # error) leaves the download out of the queue and out of the library,
+        # exactly like a file replaced by an upgrade. Only the history tells
+        # them apart; cross-seeds have none and stay a second hardlink.
+        app = next((apps[n] for n, a in APPS.items() if a["category"] == t["category"]), None)
+        if app and not any(r["eventType"] == "downloadFolderImported" for r in app.history(t["hash"])):
+            report["never imported, kept"].append(
+                f"[{app.name}] {t['name']} ({t['size'] / 1e9:.1f} GB, seeded {t['seeding_time'] / 86400:.0f} days)")
+            continue
         delete_torrent(t["hash"])
         report["no longer in the library, deleted"].append(
             f"{t['name']} ({t['size'] / 1e9:.1f} GB, seeded {t['seeding_time'] / 86400:.0f} days, ratio {t['ratio']:.2f})")
@@ -268,7 +279,7 @@ def main():
     report = {"orphan deleted": [], "still seeded elsewhere, dead one deleted": [],
               "replacement grabbed": [], "imported, old one deleted": [],
               "dead cross-seed deleted": [], "no longer in the library, deleted": [],
-              "waiting": [], "given up": [], "unknown": []}
+              "never imported, kept": [], "waiting": [], "given up": [], "unknown": []}
 
     # 1. follow up on replacements already grabbed
     for h, st in list(state.items()):
